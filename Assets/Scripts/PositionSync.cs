@@ -13,6 +13,15 @@ public class PositionSync : MonoBehaviour
         var nm = GameNet.Instance;
         if (nm != null)
             nm.OnPacketReceived += OnPacket;
+        Lobby.PlayerLeft += OnPlayerLeft;
+    }
+
+    // Игрок ушёл из лобби — убираем его аватар
+    private void OnPlayerLeft(ulong id)
+    {
+        if (!remoteBodies.TryGetValue(id, out var body)) return;
+        if (body != null) Destroy(body.gameObject);
+        remoteBodies.Remove(id);
     }
 
     void Update()
@@ -83,5 +92,6 @@ public class PositionSync : MonoBehaviour
         var nm = GameNet.Instance;
         if (nm != null)
             nm.OnPacketReceived -= OnPacket;
+        Lobby.PlayerLeft -= OnPlayerLeft;
     }
 }

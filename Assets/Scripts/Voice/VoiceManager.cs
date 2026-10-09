@@ -4,6 +4,13 @@ using Concentus.Enums;
 
 public class VoiceManager : MonoBehaviour
 {
+    public static VoiceManager Instance { get; private set; }
+
+    // Пиковый уровень микрофона с учётом усиления (0..1), для индикатора в настройках
+    public float MicLevel { get; private set; }
+    public bool IsReady => initialized;
+    public bool IsTesting => testing;
+
     private AudioClip micClip;
     private OpusEncoder encoder;
     private int lastSamplePos;
@@ -14,7 +21,7 @@ public class VoiceManager : MonoBehaviour
     private string micDevice;
     private float sendTimer;
     private bool initialized;
-    private bool muted;
+    private readonly float[] levelBuffer = new float[320];
     private float[] waveformBuffer = new float[200];
     private int waveformPos;
     private Texture2D waveformTex;
@@ -26,6 +33,7 @@ public class VoiceManager : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
         encoder = new OpusEncoder(sampleRate, 1, OpusApplication.OPUS_APPLICATION_VOIP);
         encoder.Bitrate = 24000;
         encoder.Complexity = 5;
@@ -41,6 +49,7 @@ public class VoiceManager : MonoBehaviour
         if (nm == null) return;
 
         nm.OnPacketReceived += OnVoicePacket;
+        GameSettings.MicDeviceChanged += RestartMic;
         TryInitMic();
     }
 
@@ -53,39 +62,61 @@ public class VoiceManager : MonoBehaviour
             return;
         }
 
-        if (Microphone.devices.Length == 0)
+        StartMic();
+    }
+
+    void StartMic()
+    {
+        micDevice = GameSettings.ResolveMicDevice();
+        if (micDevice == null)
         {
             Debug.LogWarning("[Voice] No microphone found");
             return;
         }
 
-        micDevice = Microphone.devices[0];
         micClip = Microphone.Start(micDevice, true, 10, sampleRate);
-        initialized = true;
-        Debug.Log("[Voice] Microphone started");
+        lastSamplePos = 0;
+        timer = 0;
+        initialized = micClip != null;
+        Debug.Log($"[Voice] Microphone started: {micDevice}");
+    }
+
+    void StopMic()
+    {
+        testing = false;
+        initialized = false;
+        MicLevel = 0;
+        if (micClip != null && micDevice != null)
+            Microphone.End(micDevice);
+        micClip = null;
+    }
+
+    // Переключение микрофона из настроек
+    void RestartMic()
+    {
+        var nm = GameNet.Instance;
+        if (nm == null || !nm.IsConnected) return; // TryInitMic подхватит выбор после подключения
+
+        StopMic();
+        StartMic();
     }
 
     void OnDisable()
     {
         CancelInvoke(nameof(TryInitMic));
-
-        if (micClip != null && micDevice != null)
-        {
-            Microphone.End(micDevice);
-            micClip = null;
-        }
+        StopMic();
     }
 
     void Update()
     {
         if (!initialized) return;
 
-        var kb = UnityEngine.InputSystem.Keyboard.current;
+        var kb = GameMenu.IsOpen ? null : UnityEngine.InputSystem.Keyboard.current;
 
         if (kb != null && kb.mKey.wasPressedThisFrame)
         {
-            muted = !muted;
-            Debug.Log($"[Voice] {(muted ? "MUTED" : "Unmuted")}");
+            GameSettings.MicMuted = !GameSettings.MicMuted;
+            Debug.Log($"[Voice] {(GameSettings.MicMuted ? "MUTED" : "Unmuted")}");
         }
 
         if (kb != null && kb.rKey.wasPressedThisFrame)
@@ -96,16 +127,12 @@ public class VoiceManager : MonoBehaviour
         if (kb != null)
         {
             if (kb.uKey.wasPressedThisFrame)
-            {
-                var vr = VoiceReceiver.Instance;
-                if (vr) vr.volume = Mathf.Clamp(vr.volume + 0.1f, 0f, 2f);
-            }
+                GameSettings.VoiceVolume = Mathf.Clamp(GameSettings.VoiceVolume + 0.1f, 0f, 2f);
             if (kb.jKey.wasPressedThisFrame)
-            {
-                var vr = VoiceReceiver.Instance;
-                if (vr) vr.volume = Mathf.Clamp(vr.volume - 0.1f, 0f, 2f);
-            }
+                GameSettings.VoiceVolume = Mathf.Clamp(GameSettings.VoiceVolume - 0.1f, 0f, 2f);
         }
+
+        UpdateMicLevel();
 
         if (testing && micClip != null && Microphone.IsRecording(micDevice))
         {
@@ -154,7 +181,7 @@ public class VoiceManager : MonoBehaviour
         }
         waveformTex.Apply();
 
-        if (muted) return;
+        if (GameSettings.MicMuted) return;
 
         timer += Time.deltaTime;
         if (timer < sendInterval) return;
@@ -169,9 +196,10 @@ public class VoiceManager : MonoBehaviour
         micClip.GetData(samples, lastSamplePos % micClip.samples);
         lastSamplePos = (lastSamplePos + frameSize) % micClip.samples;
 
+        float gain = GameSettings.MicGain;
         short[] pcm = new short[frameSize];
         for (int i = 0; i < frameSize; i++)
-            pcm[i] = (short)(Mathf.Clamp01(samples[i]) * short.MaxValue);
+            pcm[i] = (short)(Mathf.Clamp(samples[i] * gain, -1f, 1f) * short.MaxValue);
 
         byte[] opus = new byte[4000];
         int len = encoder.Encode(pcm, 0, frameSize, opus, 0, opus.Length);
@@ -191,7 +219,28 @@ public class VoiceManager : MonoBehaviour
         sendTimer += Time.deltaTime;
     }
 
-    void StartMicTest()
+    void UpdateMicLevel()
+    {
+        if (micClip == null || !Microphone.IsRecording(micDevice))
+        {
+            MicLevel = 0;
+            return;
+        }
+
+        int pos = Microphone.GetPosition(micDevice) - levelBuffer.Length;
+        if (pos < 0) pos += micClip.samples;
+        micClip.GetData(levelBuffer, pos);
+
+        float peak = 0;
+        for (int i = 0; i < levelBuffer.Length; i++)
+            peak = Mathf.Max(peak, Mathf.Abs(levelBuffer[i]));
+        peak *= GameSettings.MicGain;
+
+        // Быстрый подъём, плавный спад
+        MicLevel = Mathf.Max(peak, MicLevel - Time.deltaTime * 1.5f);
+    }
+
+    public void StartMicTest()
     {
         if (!initialized || micClip == null) return;
         testBuffer = new float[16000 * 5];
@@ -200,12 +249,16 @@ public class VoiceManager : MonoBehaviour
         Debug.Log("[Voice] Mic test RECORDING");
     }
 
-    void StopMicTest()
+    public void StopMicTest()
     {
         if (!testing) return;
         testing = false;
 
         if (testWritePos == 0) return;
+
+        float gain = GameSettings.MicGain;
+        for (int i = 0; i < testWritePos; i++)
+            testBuffer[i] = Mathf.Clamp(testBuffer[i] * gain, -1f, 1f);
 
         var clip = AudioClip.Create("MicTest", testWritePos, 1, sampleRate, false);
         clip.SetData(testBuffer, 0);
@@ -248,13 +301,14 @@ public class VoiceManager : MonoBehaviour
             status = "PLAYBACK";
         else
         {
+            bool muted = GameSettings.MicMuted;
             var active = !muted && micClip != null && Microphone.IsRecording(micDevice);
             status = muted ? "MUTED" : (active ? "ACTIVE" : "idle");
         }
         GUI.Label(new Rect(10, y, 400, 20), $"Voice: {status}");
         y += 25;
 
-        float vol = VoiceReceiver.Instance ? VoiceReceiver.Instance.volume : 1f;
+        float vol = GameSettings.VoiceVolume;
         GUI.Label(new Rect(10, y, 400, 20), $"Vol: {vol:F1}  U=up  J=down");
         y += 25;
 
@@ -267,6 +321,8 @@ public class VoiceManager : MonoBehaviour
     void OnDestroy()
     {
         CancelInvoke(nameof(TryInitMic));
+        GameSettings.MicDeviceChanged -= RestartMic;
+        if (Instance == this) Instance = null;
         if (waveformTex != null) DestroyImmediate(waveformTex);
         var nm = GameNet.Instance;
         if (nm != null)

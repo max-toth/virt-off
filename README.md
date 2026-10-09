@@ -34,7 +34,11 @@ A Unity-based virtual office environment with built-in voice communication. Feat
 | Key | Action |
 |-----|--------|
 | WASD | Move |
+| Shift | Run |
+| Space | Jump |
+| Ctrl (hold) | Crouch |
 | Mouse | Look |
+| Esc | Menu (lobby, respawn, settings, quit) |
 | M | Toggle microphone mute |
 
 A waveform visualizer and connection status are displayed in the HUD (Unity GUI).
