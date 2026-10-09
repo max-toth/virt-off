@@ -83,7 +83,7 @@ public class VoiceReceiver : MonoBehaviour
         private volatile int writePos;
         private volatile int readPos;
         private int bufferLength = 48000;
-        private const int playoutDelay = 1280;
+        private const int playoutDelay = 300;
         private float[] buffer;
 
         public VoiceStream(int sampleRate, ulong ownerId, Transform parent)
