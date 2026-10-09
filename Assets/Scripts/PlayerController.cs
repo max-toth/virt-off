@@ -21,6 +21,8 @@ public class PlayerController : MonoBehaviour
 
     [Header("Look")]
     public float maxLookAngle = 80f;
+    [Tooltip("Чувствительность мыши по умолчанию (меняется в настройках)")]
+    public float mouseSensitivity = 2f;
 
     [Header("Respawn")]
     [Tooltip("Насколько ниже точки старта игрок может упасть, прежде чем его вернёт на старт")]
@@ -56,6 +58,9 @@ public class PlayerController : MonoBehaviour
         standHeight = controller.height;
         standCenter = controller.center;
         standCameraPos = playerCamera.transform.localPosition;
+
+        if (!PlayerPrefs.HasKey(GameSettings.KeyMouseSensitivity))
+            GameSettings.MouseSensitivity = mouseSensitivity;
     }
 
     void OnDestroy()

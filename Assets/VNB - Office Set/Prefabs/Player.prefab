@@ -53,7 +53,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   walkSpeed: 3
   gravity: -9.81
-  mouseSensitivity: 20
+  mouseSensitivity: 2
   maxLookAngle: 80
 --- !u!143 &8487590110460047356
 CharacterController:

@@ -349,7 +349,7 @@ public class GameMenu : MonoBehaviour
 
     void DrawControlsTab()
     {
-        GameSettings.MouseSensitivity = Slider("Чувствительность мыши", GameSettings.MouseSensitivity, 0.1f, 10f, GameSettings.MouseSensitivity.ToString("F1"));
+        GameSettings.MouseSensitivity = Slider("Чувствительность мыши", GameSettings.MouseSensitivity, 0.1f, 30f, GameSettings.MouseSensitivity.ToString("F1"));
         GameSettings.InvertY = GUILayout.Toggle(GameSettings.InvertY, " Инвертировать ось Y");
 
         GUILayout.Space(16);

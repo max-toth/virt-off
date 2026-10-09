@@ -8,7 +8,7 @@ public static class GameSettings
     const string KeyMicGain = "settings.micGain";
     const string KeyMasterVolume = "settings.masterVolume";
     const string KeyVoiceVolume = "settings.voiceVolume";
-    const string KeyMouseSensitivity = "settings.mouseSensitivity";
+    public const string KeyMouseSensitivity = "settings.mouseSensitivity";
     const string KeyInvertY = "settings.invertY";
     const string KeyFieldOfView = "settings.fov";
     const string KeyVSync = "settings.vsync";
