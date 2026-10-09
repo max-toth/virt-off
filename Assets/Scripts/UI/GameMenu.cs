@@ -354,7 +354,7 @@ public class GameMenu : MonoBehaviour
 
         GUILayout.Space(16);
         GUILayout.Label("Клавиши:");
-        GUILayout.Label("WASD — движение\nShift — бег\nПробел — прыжок\nCtrl (удерживать) — присесть\nМышь — обзор\nM — вкл/выкл микрофон\nR (удерживать) — проверка микрофона\nU / J — громкость голосов\nEsc — меню");
+        GUILayout.Label("WASD — движение\nShift — бег\nПробел — прыжок\nCtrl (удерживать) — присесть\nМышь — обзор\nЛКМ — удар кулаком\nПКМ — лещ\nE — взять предмет (стул и т.п.), ЛКМ — бросить\nM — вкл/выкл микрофон\nR (удерживать) — проверка микрофона\nU / J — громкость голосов\nEsc — меню");
     }
 
     void DrawGraphicsTab()

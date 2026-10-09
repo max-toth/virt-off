@@ -38,6 +38,9 @@ A Unity-based virtual office environment with built-in voice communication. Feat
 | Space | Jump |
 | Ctrl (hold) | Crouch |
 | Mouse | Look |
+| LMB | Punch (throw when holding an item) |
+| RMB | Slap |
+| E | Pick up / put down an item (chairs, trash bins…) |
 | Esc | Menu (lobby, respawn, settings, quit) |
 | M | Toggle microphone mute |
 

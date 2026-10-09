@@ -20,10 +20,24 @@ public class PositionSync : MonoBehaviour
         public Quaternion TargetRot;
     }
 
+    private static PositionSync instance;
+
     private Dictionary<ulong, RemoteBody> remoteBodies = new Dictionary<ulong, RemoteBody>();
     private PlayerController player;
     private GameObject avatarTemplate;
     private float timer;
+
+    // Модель чужого игрока по его ID
+    public static bool TryGetRemote(ulong id, out Transform root, out ProceduralWalk walk)
+    {
+        root = null; walk = null;
+        if (instance == null || !instance.remoteBodies.TryGetValue(id, out var body) || body.Root == null) return false;
+        root = body.Root;
+        walk = body.Walk;
+        return true;
+    }
+
+    void Awake() => instance = this;
 
     void Start()
     {
@@ -156,6 +170,7 @@ public class PositionSync : MonoBehaviour
         }
 
         go.name = $"RemotePlayer_{id}";
+        RemoteAvatar.Attach(go, id);
         return new RemoteBody
         {
             Root = go.transform,
@@ -167,6 +182,7 @@ public class PositionSync : MonoBehaviour
 
     void OnDestroy()
     {
+        if (instance == this) instance = null;
         var nm = GameNet.Instance;
         if (nm != null)
             nm.OnPacketReceived -= OnPacket;

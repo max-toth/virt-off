@@ -32,6 +32,13 @@ public class ProceduralWalk : MonoBehaviour
     public float crouchKneeAngle = 65f;
     public float crouchSpeed = 6f;
 
+    [Header("Удары")]
+    public float attackDuration = 0.35f;
+    public float hitDuration = 0.4f;
+
+    // До какого времени держать руки перед собой (несёт предмет)
+    [HideInInspector] public float holdUntil;
+
     [Tooltip("Присед для чужих игроков выставляет PositionSync; для своего берётся из PlayerController")]
     public bool crouching;
 
@@ -44,6 +51,18 @@ public class ProceduralWalk : MonoBehaviour
     PlayerController player;
     Vector3 lastPos;
     float speed, forwardSign = 1f, phase, crouchBlend;
+    float attackStart = -10f, hitStart = -10f, holdBlend;
+    bool attackIsSlap;
+
+    // Замах правой рукой: кулак вперёд или лещ сбоку
+    public void PlayAttack(bool slap)
+    {
+        attackIsSlap = slap;
+        attackStart = Time.time;
+    }
+
+    // Отшатнуться от удара
+    public void PlayHit() => hitStart = Time.time;
 
     void Awake()
     {
@@ -155,6 +174,46 @@ public class ProceduralWalk : MonoBehaviour
         Rotate(armR, right, -armSwing * sin);
         Rotate(foreL, right, -elbow);
         Rotate(foreR, right, -elbow);
+
+        Vector3 up = transform.up;
+
+        // Отшатывание от удара: корпус назад
+        float ht = (Time.time - hitStart) / hitDuration;
+        if (ht >= 0f && ht < 1f)
+            Rotate(spine1, right, -25f * Mathf.Sin(Mathf.PI * Mathf.Sqrt(ht)));
+
+        // Несёт предмет: обе руки вперёд
+        holdBlend = Mathf.MoveTowards(holdBlend, Time.time < holdUntil ? 1f : 0f, 6f * dt);
+        if (holdBlend > 0f)
+        {
+            Rotate(armL, right, -75f * holdBlend);
+            Rotate(armR, right, -75f * holdBlend);
+            Rotate(armL, up, 15f * holdBlend);
+            Rotate(armR, up, -15f * holdBlend);
+        }
+
+        // Удар правой рукой
+        float at = (Time.time - attackStart) / attackDuration;
+        if (at >= 0f && at < 1f)
+        {
+            // Быстрый выброс (первые 30%) и плавный возврат
+            float ext = at < 0.3f ? Mathf.SmoothStep(0f, 1f, at / 0.3f) : 1f - Mathf.SmoothStep(0f, 1f, (at - 0.3f) / 0.7f);
+            if (attackIsSlap)
+            {
+                // Лещ: рука поднята вбок и проносится наотмашь справа налево
+                float sweep = at < 0.3f ? Mathf.Lerp(70f, -35f, Mathf.SmoothStep(0f, 1f, at / 0.3f)) : -35f;
+                Rotate(armR, right, -80f * ext);
+                Rotate(armR, up, sweep * ext);
+                Rotate(spine1, up, -15f * ext);
+            }
+            else
+            {
+                // Кулак: прямой удар вперёд, локоть разгибается
+                Rotate(armR, right, -85f * ext);
+                Rotate(foreR, right, elbow * ext);
+                Rotate(spine1, up, -20f * ext);
+            }
+        }
     }
 
     static void Rotate(Transform bone, Vector3 axis, float angle)

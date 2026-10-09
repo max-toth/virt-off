@@ -24,6 +24,12 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Чувствительность мыши по умолчанию (меняется в настройках)")]
     public float mouseSensitivity = 2f;
 
+    [Header("Physics")]
+    [Tooltip("Во сколько раз быстрее своей скорости игрок толкает предметы, в которые упирается")]
+    public float pushPower = 1.2f;
+    [Tooltip("Как быстро гасится отброс от удара на земле")]
+    public float knockbackDamping = 5f;
+
     [Header("Respawn")]
     [Tooltip("Насколько ниже точки старта игрок может упасть, прежде чем его вернёт на старт")]
     public float fallResetDepth = 30f;
@@ -46,6 +52,8 @@ public class PlayerController : MonoBehaviour
     private float standHeight;
     private Vector3 standCenter;
     private Vector3 standCameraPos;
+    private Vector3 externalVelocity; // отброс от ударов
+    private float shake;
 
     void Awake()
     {
@@ -61,7 +69,26 @@ public class PlayerController : MonoBehaviour
 
         if (!PlayerPrefs.HasKey(GameSettings.KeyMouseSensitivity))
             GameSettings.MouseSensitivity = mouseSensitivity;
+
+        // Кинематический Rigidbody: двигает по-прежнему CharacterController, но игрок участвует в физике
+        // (предметы от него отскакивают, работают триггеры)
+        var rb = GetComponent<Rigidbody>();
+        if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.interpolation = RigidbodyInterpolation.None;
+
+        if (GetComponent<PlayerCombat>() == null) gameObject.AddComponent<PlayerCombat>();
     }
+
+    // Толчок от удара, м/с
+    public void AddImpulse(Vector3 velocity)
+    {
+        externalVelocity += new Vector3(velocity.x, 0, velocity.z);
+        if (velocity.y > 0) verticalVelocity = Mathf.Max(verticalVelocity, 0) + velocity.y;
+    }
+
+    // Тряска камеры (градусы)
+    public void Shake(float amount) => shake = Mathf.Max(shake, amount);
 
     void OnDestroy()
     {
@@ -78,6 +105,7 @@ public class PlayerController : MonoBehaviour
         SetHeight(standHeight);
         controller.enabled = true;
         verticalVelocity = 0;
+        externalVelocity = Vector3.zero;
         verticalRotation = 0;
         playerCamera.transform.localRotation = Quaternion.identity;
         Debug.Log("[Player] Respawned");
@@ -125,7 +153,12 @@ public class PlayerController : MonoBehaviour
         transform.Rotate(0, lookDelta.x, 0);
 
         verticalRotation = Mathf.Clamp(verticalRotation - lookDelta.y, -maxLookAngle, maxLookAngle);
-        playerCamera.transform.localRotation = Quaternion.Euler(verticalRotation, 0, 0);
+        shake = Mathf.MoveTowards(shake, 0, shake * 8f * Time.deltaTime + Time.deltaTime);
+        float t = Time.time * 40f;
+        playerCamera.transform.localRotation = Quaternion.Euler(
+            verticalRotation + (Mathf.PerlinNoise(t, 0) - 0.5f) * 2f * shake,
+            (Mathf.PerlinNoise(0, t) - 0.5f) * 2f * shake,
+            (Mathf.PerlinNoise(t, t) - 0.5f) * shake);
 
         // Присед (удерживать Ctrl). Встать можно, только если над головой свободно.
         bool wantCrouch = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
@@ -158,7 +191,9 @@ public class PlayerController : MonoBehaviour
     void Move(Vector3 horizontal)
     {
         verticalVelocity += gravity * Time.deltaTime;
-        Vector3 velocity = horizontal;
+        externalVelocity = Vector3.MoveTowards(externalVelocity, Vector3.zero,
+            externalVelocity.magnitude * (controller.isGrounded ? knockbackDamping : 1f) * Time.deltaTime);
+        Vector3 velocity = horizontal + externalVelocity;
         velocity.y = verticalVelocity;
 
         controller.Move(velocity * Time.deltaTime);
@@ -166,6 +201,27 @@ public class PlayerController : MonoBehaviour
         // Небольшая прижимающая скорость, чтобы isGrounded не мигал на ступеньках и склонах
         if (controller.isGrounded && verticalVelocity < 0)
             verticalVelocity = -2f;
+    }
+
+    // Толкаем предметы, в которые упёрлись (стулья и т.п.)
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        var rb = hit.rigidbody;
+        if (rb == null || hit.moveDirection.y < -0.3f) return; // стоим сверху — не толкаем
+        var prop = NetProp.Find(hit.collider);
+        if (prop != null)
+        {
+            if (prop.IsHeld) return;
+            prop.TakeOwnership(GameNet.Instance != null ? GameNet.Instance.LocalId : 0);
+        }
+        if (rb.isKinematic) return;
+
+        // Разгоняем предмет до своей скорости, не быстрее
+        Vector3 dir = new Vector3(hit.moveDirection.x, 0, hit.moveDirection.z).normalized;
+        float speed = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude * pushPower;
+        float along = Vector3.Dot(rb.linearVelocity, dir);
+        if (along < speed)
+            rb.AddForceAtPosition(dir * (speed - along), hit.point, ForceMode.VelocityChange);
     }
 
     bool CanStandUp()
