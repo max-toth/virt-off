@@ -205,7 +205,7 @@ public class GameMenu : MonoBehaviour
         }
     }
 
-    void DrawSelfRow(ulong localId)
+    void DrawSelfRow(string localId)
     {
         var vm = VoiceManager.Instance;
         bool muted = GameSettings.MicMuted;

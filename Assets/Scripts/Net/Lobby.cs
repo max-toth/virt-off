@@ -11,22 +11,22 @@ public class Lobby : MonoBehaviour
 
     public class Player
     {
-        public ulong Id;
+        public string Id;
         public float LastSeen;
         public float LastVoice = -100f;
         public bool Muted;
         public bool IsSpeaking => Time.unscaledTime - LastVoice < SpeakingHoldSeconds;
     }
 
-    public static event Action<ulong> PlayerJoined;
-    public static event Action<ulong> PlayerLeft;
+    public static event Action<string> PlayerJoined;
+    public static event Action<string> PlayerLeft;
 
-    static readonly Dictionary<ulong, Player> players = new Dictionary<ulong, Player>();
-    static readonly List<ulong> expired = new List<ulong>();
+    static readonly Dictionary<string, Player> players = new Dictionary<string, Player>(StringComparer.Ordinal);
+    static readonly List<string> expired = new List<string>();
 
     public static ICollection<Player> Players => players.Values;
 
-    public static bool IsMuted(ulong id) => players.TryGetValue(id, out var p) && p.Muted;
+    public static bool IsMuted(string id) => players.TryGetValue(id, out var p) && p.Muted;
 
     // Сброс статики до загрузки сцены, чтобы компоненты сцены могли подписаться в Awake
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -59,19 +59,19 @@ public class Lobby : MonoBehaviour
             nm.OnPacketReceived -= OnPacket;
     }
 
-    // 0x01 — голос, 0x02 — позиция; в обоих ID отправителя лежит в байтах 1..8
-    private void OnPacket(ulong localId, byte[] data)
+    // 0x01 — голос, 0x02 — позиция; id отправителя: [idLen:1][id UTF-8] после типа
+    private void OnPacket(string localId, byte[] data)
     {
-        if (data.Length < 9 || (data[0] != 0x01 && data[0] != 0x02)) return;
+        if (data.Length < 2 || (data[0] != 0x01 && data[0] != 0x02)) return;
 
-        ulong id = BitConverter.ToUInt64(data, 1);
+        string id = IdCodec.Read(data, 1, out _);
         if (id == localId) return;
 
         if (!players.TryGetValue(id, out var p))
         {
             p = new Player { Id = id };
             players.Add(id, p);
-            Debug.Log($"[Lobby] player-{id} joined");
+            Debug.Log($"[Lobby] {id} joined");
             PlayerJoined?.Invoke(id);
         }
 
@@ -79,7 +79,7 @@ public class Lobby : MonoBehaviour
     }
 
     // Клиенты шлют голос непрерывно, поэтому «говорит» определяет VoiceReceiver по громкости
-    public static void MarkSpeaking(ulong id)
+    public static void MarkSpeaking(string id)
     {
         if (players.TryGetValue(id, out var p))
             p.LastVoice = Time.unscaledTime;
@@ -96,7 +96,7 @@ public class Lobby : MonoBehaviour
         foreach (var id in expired)
         {
             players.Remove(id);
-            Debug.Log($"[Lobby] player-{id} left");
+            Debug.Log($"[Lobby] {id} left");
             PlayerLeft?.Invoke(id);
         }
     }

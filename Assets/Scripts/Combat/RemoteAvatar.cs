@@ -3,10 +3,10 @@
 // Метка на модели чужого игрока: по ней удары и брошенные предметы понимают, в кого попали
 public class RemoteAvatar : MonoBehaviour
 {
-    public ulong Id;
+    public string Id;
 
     // Капсула (рост ~1.8 м) и кинематический Rigidbody, чтобы в игрока можно было попасть и предметы от него отскакивали
-    public static RemoteAvatar Attach(GameObject go, ulong id)
+    public static RemoteAvatar Attach(GameObject go, string id)
     {
         var avatar = go.AddComponent<RemoteAvatar>();
         avatar.Id = id;

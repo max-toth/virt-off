@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -22,13 +23,13 @@ public class PositionSync : MonoBehaviour
 
     private static PositionSync instance;
 
-    private Dictionary<ulong, RemoteBody> remoteBodies = new Dictionary<ulong, RemoteBody>();
+    private Dictionary<string, RemoteBody> remoteBodies = new Dictionary<string, RemoteBody>(StringComparer.Ordinal);
     private PlayerController player;
     private GameObject avatarTemplate;
     private float timer;
 
     // Модель чужого игрока по его ID
-    public static bool TryGetRemote(ulong id, out Transform root, out ProceduralWalk walk)
+    public static bool TryGetRemote(string id, out Transform root, out ProceduralWalk walk)
     {
         root = null; walk = null;
         if (instance == null || !instance.remoteBodies.TryGetValue(id, out var body) || body.Root == null) return false;
@@ -69,7 +70,7 @@ public class PositionSync : MonoBehaviour
     }
 
     // Игрок ушёл из лобби — убираем его аватар
-    private void OnPlayerLeft(ulong id)
+    private void OnPlayerLeft(string id)
     {
         if (!remoteBodies.TryGetValue(id, out var body)) return;
         if (body.Root != null) Destroy(body.Root.gameObject);
@@ -90,15 +91,16 @@ public class PositionSync : MonoBehaviour
         Vector3 pos = transform.position;
         float rotY = transform.eulerAngles.y;
 
-        // 0x02 | id(8) | pos(12) | rotY(4) | flags(1): бит 0 — присед
-        byte[] packet = new byte[1 + 8 + 12 + 4 + 1];
+        // 0x02 | idLen(1) | id | pos(12) | rotY(4) | flags(1): бит 0 — присед
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId);
+        byte[] packet = new byte[1 + 1 + idBytes.Length + 12 + 4 + 1];
         packet[0] = 0x02;
-        System.BitConverter.GetBytes(nm.LocalId).CopyTo(packet, 1);
-        System.BitConverter.GetBytes(pos.x).CopyTo(packet, 9);
-        System.BitConverter.GetBytes(pos.y).CopyTo(packet, 13);
-        System.BitConverter.GetBytes(pos.z).CopyTo(packet, 17);
-        System.BitConverter.GetBytes(rotY).CopyTo(packet, 21);
-        packet[25] = (byte)(player != null && player.IsCrouching ? 1 : 0);
+        int off = IdCodec.Write(packet, 1, nm.LocalId);
+        System.BitConverter.GetBytes(pos.x).CopyTo(packet, off);
+        System.BitConverter.GetBytes(pos.y).CopyTo(packet, off + 4);
+        System.BitConverter.GetBytes(pos.z).CopyTo(packet, off + 8);
+        System.BitConverter.GetBytes(rotY).CopyTo(packet, off + 12);
+        packet[off + 16] = (byte)(player != null && player.IsCrouching ? 1 : 0);
 
         nm.Send(packet);
     }
@@ -118,19 +120,20 @@ public class PositionSync : MonoBehaviour
         }
     }
 
-    private void OnPacket(ulong senderId, byte[] data)
+    private void OnPacket(string senderId, byte[] data)
     {
-        if (data.Length < 25 || data[0] != 0x02) return;
+        if (data.Length < 3 || data[0] != 0x02) return;
 
-        ulong sourceId = System.BitConverter.ToUInt64(data, 1);
+        string sourceId = IdCodec.Read(data, 1, out int off);
         if (sourceId == GameNet.Instance?.LocalId) return;
+        if (data.Length < off + 17) return;
 
         Vector3 pos;
-        pos.x = System.BitConverter.ToSingle(data, 9);
-        pos.y = System.BitConverter.ToSingle(data, 13);
-        pos.z = System.BitConverter.ToSingle(data, 17);
-        float rotY = System.BitConverter.ToSingle(data, 21);
-        bool crouching = data.Length > 25 && (data[25] & 1) != 0;
+        pos.x = System.BitConverter.ToSingle(data, off);
+        pos.y = System.BitConverter.ToSingle(data, off + 4);
+        pos.z = System.BitConverter.ToSingle(data, off + 8);
+        float rotY = System.BitConverter.ToSingle(data, off + 12);
+        bool crouching = (data[off + 16] & 1) != 0;
 
         if (!remoteBodies.TryGetValue(sourceId, out var body))
         {
@@ -143,14 +146,14 @@ public class PositionSync : MonoBehaviour
         if (body.Walk != null) body.Walk.crouching = crouching;
     }
 
-    private RemoteBody CreateRemoteBody(ulong id, Vector3 pos, float rotY)
+    private RemoteBody CreateRemoteBody(string id, Vector3 pos, float rotY)
     {
         var rot = Quaternion.Euler(0, rotY, 0);
         GameObject go;
 
-        if (avatarPrefabs != null && avatarPrefabs.Length > 0 && avatarPrefabs[id % (ulong)avatarPrefabs.Length] != null)
+        if (avatarPrefabs != null && avatarPrefabs.Length > 0 && avatarPrefabs[IdCodec.StableIndex(id, avatarPrefabs.Length)] != null)
         {
-            go = Instantiate(avatarPrefabs[id % (ulong)avatarPrefabs.Length], pos, rot);
+            go = Instantiate(avatarPrefabs[IdCodec.StableIndex(id, avatarPrefabs.Length)], pos, rot);
             go.transform.localScale = Vector3.one * avatarScale;
             if (go.GetComponent<ProceduralWalk>() == null) go.AddComponent<ProceduralWalk>();
         }

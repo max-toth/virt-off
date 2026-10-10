@@ -9,7 +9,7 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(PlayerController))]
 public class PlayerCombat : MonoBehaviour
 {
-    // 0x03 | attackerId(8) | kind(1) | targetId(8, 0 — мимо) | point(12) | impulse(12)
+    // 0x03 | attackerIdLen(1) | attackerId | kind(1) | targetIdLen(1) | targetId(0 — мимо) | point(12) | impulse(12) | hitObject(1)
     public const byte PacketAttack = 0x03;
 
     public enum AttackKind : byte { Punch, Slap, Prop }
@@ -58,7 +58,7 @@ public class PlayerCombat : MonoBehaviour
         if (held != null) Drop(Vector3.zero);
     }
 
-    static ulong LocalId => GameNet.Instance != null ? GameNet.Instance.LocalId : 0;
+    static string LocalId => GameNet.Instance?.LocalId;
 
     void Update()
     {
@@ -104,7 +104,7 @@ public class PlayerCombat : MonoBehaviour
 
         Vector3 origin = cam.transform.position;
         Vector3 dir = cam.transform.forward;
-        ulong target = 0;
+        string target = null;
         Vector3 point = origin + dir * reach;
         Vector3 impulse = Vector3.zero;
         bool hitSomething = false;
@@ -140,60 +140,67 @@ public class PlayerCombat : MonoBehaviour
         }
 
         // Звук: по человеку — удар/лещ, по предмету/стене — тише, мимо — удар по воздуху
-        if (target != 0)
+        if (!string.IsNullOrEmpty(target))
             GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point);
         else if (hitSomething)
             GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point, 0.5f, 1.2f);
         else
             GameSounds.Play(Sfx.Miss, point, 0.6f);
 
-        SendHit(kind, target, hitSomething ? point : origin, impulse, hitSomething && target == 0);
+        SendHit(kind, target, hitSomething ? point : origin, impulse, hitSomething && string.IsNullOrEmpty(target));
     }
 
-    public static void SendHit(AttackKind kind, ulong target, Vector3 point, Vector3 impulse, bool hitObject = false)
+    public static void SendHit(AttackKind kind, string target, Vector3 point, Vector3 impulse, bool hitObject = false)
     {
         var nm = GameNet.Instance;
         if (nm == null || !nm.IsConnected) return;
-        var p = new byte[43];
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
+        byte[] tgtBytes = System.Text.Encoding.UTF8.GetBytes(target ?? "");
+        var p = new byte[1 + 1 + idBytes.Length + 1 + 1 + tgtBytes.Length + 12 + 12 + 1];
         p[0] = PacketAttack;
-        BitConverter.GetBytes(nm.LocalId).CopyTo(p, 1);
-        p[9] = (byte)kind;
-        BitConverter.GetBytes(target).CopyTo(p, 10);
-        NetProp.WriteVec(p, 18, point);
-        NetProp.WriteVec(p, 30, impulse);
-        p[42] = (byte)(hitObject ? 1 : 0);
+        int off = IdCodec.Write(p, 1, nm.LocalId);
+        p[off++] = (byte)kind;
+        off = IdCodec.Write(p, off, target);
+        NetProp.WriteVec(p, off, point); off += 12;
+        NetProp.WriteVec(p, off, impulse); off += 12;
+        p[off] = (byte)(hitObject ? 1 : 0);
         nm.Send(p);
     }
 
-    void OnPacket(ulong localId, byte[] data)
+    void OnPacket(string localId, byte[] data)
     {
         if (data.Length < 1) return;
-        if (data[0] == NetProp.PacketSound && data.Length >= 26)
+        if (data[0] == NetProp.PacketSound)
         {
-            if (BitConverter.ToUInt64(data, 1) == localId) return;
-            GameSounds.Play((Sfx)data[9], NetProp.ReadVec(data, 10), BitConverter.ToSingle(data, 22));
+            if (data.Length < 3) return;
+            string sender = IdCodec.Read(data, 1, out int sOff);
+            if (sender == localId) return;
+            if (data.Length < sOff + 17) return;
+            GameSounds.Play((Sfx)data[sOff], NetProp.ReadVec(data, sOff + 1), BitConverter.ToSingle(data, sOff + 13));
             return;
         }
-        if (data[0] != PacketAttack || data.Length < 43) return;
+        if (data[0] != PacketAttack || data.Length < 3) return;
 
-        ulong attacker = BitConverter.ToUInt64(data, 1);
+        string attacker = IdCodec.Read(data, 1, out int off);
         if (attacker == localId) return;
-        var kind = (AttackKind)data[9];
-        ulong target = BitConverter.ToUInt64(data, 10);
-        Vector3 point = NetProp.ReadVec(data, 18);
-        Vector3 impulse = NetProp.ReadVec(data, 30);
-        bool hitObject = data[42] != 0;
+        if (data.Length < off + 1) return;
+        var kind = (AttackKind)data[off++];
+        string target = IdCodec.Read(data, off, out off);
+        if (data.Length < off + 25) return;
+        Vector3 point = NetProp.ReadVec(data, off); off += 12;
+        Vector3 impulse = NetProp.ReadVec(data, off); off += 12;
+        bool hitObject = data[off] != 0;
 
         // Замах у ударившего (для брошенного предмета замаха нет)
         if (kind != AttackKind.Prop && PositionSync.TryGetRemote(attacker, out _, out var attackerWalk) && attackerWalk != null)
             attackerWalk.PlayAttack(kind == AttackKind.Slap);
 
         if (kind == AttackKind.Prop) GameSounds.Play(Sfx.Punch, point, 1f, 0.8f);
-        else if (target != 0) GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point);
+        else if (!string.IsNullOrEmpty(target)) GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point);
         else if (hitObject) GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point, 0.5f, 1.2f);
         else GameSounds.Play(Sfx.Miss, point, 0.6f);
 
-        if (target == localId && target != 0)
+        if (!string.IsNullOrEmpty(target) && target == localId)
         {
             // Нас ударили
             player.AddImpulse(impulse);
@@ -201,7 +208,7 @@ public class PlayerCombat : MonoBehaviour
             if (walk != null) walk.PlayHit();
             if (held != null) Drop(impulse * 0.5f); // от удара роняем предмет
         }
-        else if (target != 0 && PositionSync.TryGetRemote(target, out _, out var victimWalk) && victimWalk != null)
+        else if (!string.IsNullOrEmpty(target) && PositionSync.TryGetRemote(target, out _, out var victimWalk) && victimWalk != null)
             victimWalk.PlayHit();
     }
 

@@ -7,13 +7,13 @@ using UnityEngine;
 
 public class NetManager : IDisposable
 {
-    public event Action<ulong, byte[]> OnPacketReceived;
+    public event Action<string, byte[]> OnPacketReceived;
 
     private UdpClient socket;
     private Thread recvThread;
     private volatile bool running;
     private IPEndPoint serverEndpoint;
-    public ulong LocalId { get; private set; }
+    public string LocalId { get; private set; }
     public bool IsConnected { get; private set; }
 
     public void StartClient(string host, int port)
@@ -57,9 +57,9 @@ public class NetManager : IDisposable
 
     private void HandlePacket(byte[] data)
     {
-        if (data.Length >= 9 && data[0] == 0xFE)
+        if (data.Length >= 2 && data[0] == 0xFE)
         {
-            LocalId = BitConverter.ToUInt64(data, 1);
+            LocalId = System.Text.Encoding.UTF8.GetString(data, 1, data.Length - 1);
             IsConnected = true;
             Debug.Log($"[Net] Got ID: {LocalId}");
             return;

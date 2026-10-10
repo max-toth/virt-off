@@ -204,10 +204,11 @@ public class VoiceManager : MonoBehaviour
         byte[] opus = new byte[4000];
         int len = encoder.Encode(pcm, 0, frameSize, opus, 0, opus.Length);
 
-        byte[] packet = new byte[1 + 8 + len];
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId);
+        byte[] packet = new byte[1 + 1 + idBytes.Length + len];
         packet[0] = 0x01;
-        System.BitConverter.GetBytes(nm.LocalId).CopyTo(packet, 1);
-        System.Array.Copy(opus, 0, packet, 9, len);
+        IdCodec.Write(packet, 1, nm.LocalId);
+        System.Array.Copy(opus, 0, packet, 2 + idBytes.Length, len);
 
         nm.Send(packet);
 
@@ -267,13 +268,13 @@ public class VoiceManager : MonoBehaviour
         Debug.Log($"[Voice] Mic test PLAYBACK ({testWritePos} samples)");
     }
 
-    private void OnVoicePacket(ulong senderId, byte[] data)
+    private void OnVoicePacket(string senderId, byte[] data)
     {
-        if (data.Length < 10 || data[0] != 0x01) return;
+        if (data.Length < 3 || data[0] != 0x01) return;
 
-        ulong sourceId = System.BitConverter.ToUInt64(data, 1);
-        byte[] opusData = new byte[data.Length - 9];
-        System.Array.Copy(data, 9, opusData, 0, opusData.Length);
+        string sourceId = IdCodec.Read(data, 1, out int payloadOffset);
+        byte[] opusData = new byte[data.Length - payloadOffset];
+        System.Array.Copy(data, payloadOffset, opusData, 0, opusData.Length);
 
         VoiceReceiver.Instance?.ReceiveVoice(sourceId, opusData);
     }

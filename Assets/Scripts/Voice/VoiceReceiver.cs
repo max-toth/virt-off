@@ -12,7 +12,7 @@ public class VoiceReceiver : MonoBehaviour
 
     const float SpeakingThreshold = 0.03f;
 
-    private Dictionary<ulong, VoiceStream> streams = new Dictionary<ulong, VoiceStream>();
+    private Dictionary<string, VoiceStream> streams = new Dictionary<string, VoiceStream>(System.StringComparer.Ordinal);
 
     void Awake()
     {
@@ -35,15 +35,15 @@ public class VoiceReceiver : MonoBehaviour
             stream.Restart();
     }
 
-    private void OnPlayerLeft(ulong clientId)
+    private void OnPlayerLeft(string clientId)
     {
         if (!streams.TryGetValue(clientId, out var stream)) return;
         stream.Dispose();
         streams.Remove(clientId);
-        ShowNotification($"player-{clientId} left");
+        ShowNotification($"{clientId} left");
     }
 
-    public void ReceiveVoice(ulong clientId, byte[] opusData)
+    public void ReceiveVoice(string clientId, byte[] opusData)
     {
         // Игрок заглушён в меню — голос просто не воспроизводим
         if (Lobby.IsMuted(clientId)) return;
@@ -52,8 +52,8 @@ public class VoiceReceiver : MonoBehaviour
         {
             streams[clientId] = new VoiceStream(16000, clientId, audioRoot ? audioRoot : transform);
 
-            ShowNotification($"player-{clientId} joined");
-            Debug.Log($"player-{clientId} joined");
+            ShowNotification($"{clientId} joined");
+            Debug.Log($"{clientId} joined");
         }
 
         if (streams[clientId].Feed(opusData) > SpeakingThreshold)
@@ -86,7 +86,7 @@ public class VoiceReceiver : MonoBehaviour
         private const int playoutDelay = 320;
         private float[] buffer;
 
-        public VoiceStream(int sampleRate, ulong ownerId, Transform parent)
+        public VoiceStream(int sampleRate, string ownerId, Transform parent)
         {
             decoder = new OpusDecoder(sampleRate, 1);
             buffer = new float[bufferLength];

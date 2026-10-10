@@ -212,7 +212,7 @@ public class PlayerController : MonoBehaviour
         if (prop != null)
         {
             if (prop.IsHeld) return;
-            prop.TakeOwnership(GameNet.Instance != null ? GameNet.Instance.LocalId : 0);
+            prop.TakeOwnership(GameNet.Instance?.LocalId);
         }
         if (rb.isKinematic) return;
 

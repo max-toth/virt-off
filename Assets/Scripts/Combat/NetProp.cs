@@ -9,9 +9,9 @@ using UnityEngine.SceneManagement;
 [RequireComponent(typeof(Rigidbody))]
 public class NetProp : MonoBehaviour
 {
-    // 0x04 | id(8) | propId(4) | pos(12) | rot(16) | vel(12) | flags(1): бит 0 — в руках, бит 1 — остановился
+    // 0x04 | idLen(1) | id | propId(4) | pos(12) | rot(16) | vel(12) | flags(1): бит 0 — в руках, бит 1 — остановился
     public const byte PacketState = 0x04;
-    // 0x05 | id(8) | sfx(1) | pos(12) | volume(4)
+    // 0x05 | idLen(1) | id | sfx(1) | pos(12) | volume(4)
     public const byte PacketSound = 0x05;
 
     const float SendInterval = 0.05f;
@@ -24,7 +24,7 @@ public class NetProp : MonoBehaviour
     public bool IsOwned { get; private set; }
     public bool IsHeld { get; private set; }
     // Кто кинул/толкнул предмет — чтобы засчитать попадание в игрока
-    public ulong LastThrower { get; private set; }
+    public string LastThrower { get; private set; }
 
     Collider[] colliders;
     Vector3 startPos;
@@ -33,7 +33,7 @@ public class NetProp : MonoBehaviour
     Vector3 targetPos;
     Quaternion targetRot;
     bool hasRemoteTarget;
-    readonly Dictionary<ulong, float> lastHitTime = new Dictionary<ulong, float>();
+    readonly Dictionary<string, float> lastHitTime = new Dictionary<string, float>(StringComparer.Ordinal);
 
     // ---------- Подготовка сцены ----------
 
@@ -155,7 +155,7 @@ public class NetProp : MonoBehaviour
     // ---------- Управление ----------
 
     // Начать считать физику у себя (толкнули, ударили, взяли)
-    public void TakeOwnership(ulong thrower)
+    public void TakeOwnership(string thrower)
     {
         LastThrower = thrower;
         ownedSince = Time.time;
@@ -167,7 +167,7 @@ public class NetProp : MonoBehaviour
         Body.WakeUp();
     }
 
-    public void Pickup(ulong holder, Collider ignore)
+    public void Pickup(string holder, Collider ignore)
     {
         TakeOwnership(holder);
         IsHeld = true;
@@ -250,38 +250,45 @@ public class NetProp : MonoBehaviour
     {
         var nm = GameNet.Instance;
         if (nm == null || !nm.IsConnected) return;
-        var p = new byte[54];
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
+        var p = new byte[1 + 1 + idBytes.Length + 4 + 12 + 16 + 12 + 1];
         p[0] = PacketState;
-        BitConverter.GetBytes(nm.LocalId).CopyTo(p, 1);
-        BitConverter.GetBytes(Id).CopyTo(p, 9);
+        int off = IdCodec.Write(p, 1, nm.LocalId);
+        BitConverter.GetBytes(Id).CopyTo(p, off); off += 4;
         Vector3 pos = transform.position;
         Quaternion rot = transform.rotation;
         Vector3 vel = Body.isKinematic ? Vector3.zero : Body.linearVelocity;
-        WriteVec(p, 13, pos);
-        BitConverter.GetBytes(rot.x).CopyTo(p, 25);
-        BitConverter.GetBytes(rot.y).CopyTo(p, 29);
-        BitConverter.GetBytes(rot.z).CopyTo(p, 33);
-        BitConverter.GetBytes(rot.w).CopyTo(p, 37);
-        WriteVec(p, 41, vel);
-        p[53] = flags;
+        WriteVec(p, off, pos); off += 12;
+        BitConverter.GetBytes(rot.x).CopyTo(p, off); off += 4;
+        BitConverter.GetBytes(rot.y).CopyTo(p, off); off += 4;
+        BitConverter.GetBytes(rot.z).CopyTo(p, off); off += 4;
+        BitConverter.GetBytes(rot.w).CopyTo(p, off); off += 4;
+        WriteVec(p, off, vel); off += 12;
+        p[off] = flags;
         nm.Send(p);
     }
 
-    void OnPacket(ulong localId, byte[] data)
+    void OnPacket(string localId, byte[] data)
     {
-        if (data.Length < 54 || data[0] != PacketState) return;
-        if (BitConverter.ToInt32(data, 9) != Id) return;
-        ulong sender = BitConverter.ToUInt64(data, 1);
+        if (data.Length < 3 || data[0] != PacketState) return;
+        string sender = IdCodec.Read(data, 1, out int off);
         if (sender == localId) return;
+        if (data.Length < off + 4) return;
+        if (BitConverter.ToInt32(data, off) != Id) return;
+        off += 4;
+
+        if (data.Length < off + 41) return; // pos(12) + rot(16) + vel(12) + flags(1)
 
         if (IsHeld) return; // у нас в руках — не отдаём
         IsOwned = false;
         Body.isKinematic = true;
 
-        targetPos = ReadVec(data, 13);
-        targetRot = new Quaternion(BitConverter.ToSingle(data, 25), BitConverter.ToSingle(data, 29),
-                                   BitConverter.ToSingle(data, 33), BitConverter.ToSingle(data, 37));
-        byte flags = data[53];
+        targetPos = ReadVec(data, off); off += 12;
+        targetRot = new Quaternion(BitConverter.ToSingle(data, off), BitConverter.ToSingle(data, off + 4),
+                                   BitConverter.ToSingle(data, off + 8), BitConverter.ToSingle(data, off + 12));
+        off += 16;
+        off += 12; // vel не используется приёмником
+        byte flags = data[off];
         lastRemotePacket = Time.time;
         hasRemoteTarget = (flags & 2) == 0;
         LastThrower = sender;
@@ -318,7 +325,7 @@ public class NetProp : MonoBehaviour
 
         // Попали в другого игрока
         var avatar = col.collider.GetComponentInParent<RemoteAvatar>();
-        if (avatar != null && speed > 3f && LastThrower != 0)
+        if (avatar != null && speed > 3f && !string.IsNullOrEmpty(LastThrower))
         {
             if (lastHitTime.TryGetValue(avatar.Id, out float t) && Time.time - t < 0.5f) return;
             lastHitTime[avatar.Id] = Time.time;
@@ -335,12 +342,13 @@ public class NetProp : MonoBehaviour
     {
         var nm = GameNet.Instance;
         if (nm == null || !nm.IsConnected) return;
-        var p = new byte[26];
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
+        var p = new byte[1 + 1 + idBytes.Length + 1 + 12 + 4];
         p[0] = PacketSound;
-        BitConverter.GetBytes(nm.LocalId).CopyTo(p, 1);
-        p[9] = (byte)sfx;
-        WriteVec(p, 10, pos);
-        BitConverter.GetBytes(volume).CopyTo(p, 22);
+        int off = IdCodec.Write(p, 1, nm.LocalId);
+        p[off++] = (byte)sfx;
+        WriteVec(p, off, pos); off += 12;
+        BitConverter.GetBytes(volume).CopyTo(p, off);
         nm.Send(p);
     }
 
