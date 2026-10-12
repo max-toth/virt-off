@@ -15,6 +15,7 @@ public static class AppSetup
 public class NetComponent : MonoBehaviour
 {
     public NetManager Manager { get; private set; }
+    bool manifestSent;
 
     public void StartNet()
     {
@@ -30,12 +31,24 @@ public class NetComponent : MonoBehaviour
                 host = args[i + 1];
 
         Debug.Log($"[Client] Connecting to {host}:{port}...");
+        Manager.OnIdAssigned += OnIdAssigned;
         Manager.StartClient(host, port);
 
         GameNet.Set(Manager);
     }
 
-    void OnDestroy() => Manager?.Dispose();
+    void OnIdAssigned()
+    {
+        if (manifestSent) return;
+        manifestSent = true;
+        NetProp.SendManifest();
+    }
+
+    void OnDestroy()
+    {
+        if (Manager != null) Manager.OnIdAssigned -= OnIdAssigned;
+        Manager?.Dispose();
+    }
 }
 
 public static class GameNet

@@ -87,7 +87,7 @@ public class PlayerCombat : MonoBehaviour
     void LateUpdate()
     {
         if (held == null) return;
-        if (held.IsOwned == false) { held = null; return; } // предмет отобрали
+        if (!held.IsServerOwned) { held = null; return; } // предмет отобрали
         Vector3 pos = cam.transform.position + cam.transform.forward * holdDistance - Vector3.up * 0.35f;
         Quaternion rot = Quaternion.Euler(0, transform.eulerAngles.y, 0) * heldRotOffset;
         held.MoveHeld(pos, rot);
@@ -230,7 +230,7 @@ public class PlayerCombat : MonoBehaviour
     {
         held = prop;
         heldRotOffset = Quaternion.Inverse(Quaternion.Euler(0, transform.eulerAngles.y, 0)) * prop.transform.rotation;
-        prop.Pickup(LocalId, controller);
+        prop.RequestPickup(controller);
     }
 
     void Throw()
@@ -247,7 +247,7 @@ public class PlayerCombat : MonoBehaviour
     {
         var prop = held;
         held = null;
-        if (prop != null) prop.Release(velocity, Vector3.zero, controller);
+        if (prop != null) prop.RequestRelease(velocity, Vector3.zero, controller);
     }
 
     void OnGUI()

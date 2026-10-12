@@ -3,27 +3,41 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Предмет, который можно толкать, бить, брать и кидать (стулья, урны и т.п.).
-// Физику считает только «владелец» — клиент, который последним трогал предмет; он рассылает позицию.
-// У остальных предмет кинематический и плавно едет за пакетами. Успокоился — владелец отпускает его.
 [RequireComponent(typeof(Rigidbody))]
 public class NetProp : MonoBehaviour
 {
-    // 0x04 | idLen(1) | id | propId(4) | pos(12) | rot(16) | vel(12) | flags(1): бит 0 — в руках, бит 1 — остановился
     public const byte PacketState = 0x04;
-    // 0x05 | idLen(1) | id | sfx(1) | pos(12) | volume(4)
     public const byte PacketSound = 0x05;
+    public const byte PacketManifest = 0x06;
+    public const byte PacketPickupReq = 0x07;
+    public const byte PacketRelease = 0x08;
+    public const byte PacketManifestAck = 0x09;
+    public const byte PacketPropGrant = 0x0A;
+    public const byte PacketPropReleaseEvent = 0x0B;
+    public const byte PacketPropSnapshot = 0x0C;
 
     const float SendInterval = 0.05f;
     const float RemoteTimeout = 1f;
+    const float GrantTimeout = 0.5f;
 
     static readonly Dictionary<int, NetProp> props = new Dictionary<int, NetProp>();
 
     public int Id { get; private set; }
+
+    /// Server-assigned prop id (-1 until MANIFEST_ACK).
+    public int ServerId { get; private set; } = -1;
+
     public Rigidbody Body { get; private set; }
-    public bool IsOwned { get; private set; }
     public bool IsHeld { get; private set; }
-    // Кто кинул/толкнул предмет — чтобы засчитать попадание в игрока
+
+    /// True after receiving PROP_GRANT from server.
+    public bool IsServerOwned => serverOwned;
+    bool serverOwned;
+
+    /// True while waiting for PROP_GRANT after PICKUP_REQ.
+    bool pendingGrant;
+    float grantRequestTime;
+
     public string LastThrower { get; private set; }
 
     Collider[] colliders;
@@ -35,9 +49,6 @@ public class NetProp : MonoBehaviour
     bool hasRemoteTarget;
     readonly Dictionary<string, float> lastHitTime = new Dictionary<string, float>(StringComparer.Ordinal);
 
-    // ---------- Подготовка сцены ----------
-
-    // Части имени объекта (без пробелов и _), по которым он становится бросаемым
     static readonly string[] Keywords = { "chair", "trashbin", "trash", "eraser", "notepad", "pencilholder" };
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -48,7 +59,10 @@ public class NetProp : MonoBehaviour
         SetupScene();
     }
 
-    static void OnSceneLoaded(Scene s, LoadSceneMode m) => SetupScene();
+    static void OnSceneLoaded(Scene s, LoadSceneMode m)
+    {
+        SetupScene();
+    }
 
     static bool Matches(Transform t)
     {
@@ -58,8 +72,6 @@ public class NetProp : MonoBehaviour
         return false;
     }
 
-    // Находит в сцене стулья и мелкие предметы и делает их физическими.
-    // ID выдаются по позиции, поэтому совпадают у всех клиентов с одной и той же сценой.
     static void SetupScene()
     {
         props.Clear();
@@ -67,7 +79,7 @@ public class NetProp : MonoBehaviour
         foreach (var t in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude))
         {
             if (!Matches(t) || t.GetComponentInParent<PlayerController>() != null) continue;
-            if (t.parent != null && Matches(t.parent)) continue; // колёса стула и т.п. — часть родителя
+            if (t.parent != null && Matches(t.parent)) continue;
             if (t.GetComponentInChildren<MeshFilter>() == null) continue;
             candidates.Add(t);
         }
@@ -94,7 +106,6 @@ public class NetProp : MonoBehaviour
 
     static NetProp MakeProp(GameObject go)
     {
-        // Невыпуклые MeshCollider нельзя на динамическом теле — заменяем одной коробкой по габаритам
         foreach (var c in go.GetComponentsInChildren<Collider>()) c.enabled = false;
 
         var root = go.transform;
@@ -125,7 +136,7 @@ public class NetProp : MonoBehaviour
         rb.angularDamping = 0.3f;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        rb.isKinematic = true; // спит, пока его не тронули — иначе задвинутые под стол стулья разлетятся
+        rb.isKinematic = true;
 
         return go.AddComponent<NetProp>();
     }
@@ -152,40 +163,132 @@ public class NetProp : MonoBehaviour
 
     public static NetProp Find(Collider c) => c != null ? c.GetComponentInParent<NetProp>() : null;
 
-    // ---------- Управление ----------
-
-    // Начать считать физику у себя (толкнули, ударили, взяли)
+    /// Local-only physics ownership (punch, push). Does NOT send to server.
     public void TakeOwnership(string thrower)
     {
         LastThrower = thrower;
         ownedSince = Time.time;
         slowSince = -1f;
         hasRemoteTarget = false;
-        if (IsOwned) return;
-        IsOwned = true;
+        if (serverOwned) return;
         Body.isKinematic = false;
         Body.WakeUp();
     }
 
-    public void Pickup(string holder, Collider ignore)
+    // ---------- Manifest ----------
+
+    /// Builds and sends 0x06 MANIFEST: [count:2][{keyLen:1|key|halfExtents:12|mass:4}*]
+    public static void SendManifest()
     {
-        TakeOwnership(holder);
-        IsHeld = true;
-        Body.isKinematic = true;
-        SetIgnore(ignore, true);
+        var nm = GameNet.Instance;
+        if (nm == null || props.Count == 0) return;
+
+        var keys = new string[props.Count];
+        var hf = new Vector3[props.Count];
+        var masses = new float[props.Count];
+        for (int i = 0; i < props.Count; i++)
+        {
+            var prop = props[i];
+            keys[i] = prop.GetHierarchyPath();
+            var box = prop.GetComponent<BoxCollider>();
+            hf[i] = box != null ? box.size * 0.5f : Vector3.one * 0.5f;
+            masses[i] = prop.Body.mass;
+        }
+
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
+        int size = 1 + idBytes.Length + 2;
+        for (int i = 0; i < props.Count; i++)
+        {
+            byte[] kb = System.Text.Encoding.UTF8.GetBytes(keys[i]);
+            size += 1 + kb.Length + 12 + 4;
+        }
+        var p = new byte[1 + size];
+        p[0] = PacketManifest;
+        int off = IdCodec.Write(p, 1, nm.LocalId);
+        p[off++] = (byte)(props.Count & 0xFF);
+        p[off++] = (byte)((props.Count >> 8) & 0xFF);
+        for (int i = 0; i < props.Count; i++)
+        {
+            byte[] kb = System.Text.Encoding.UTF8.GetBytes(keys[i]);
+            p[off++] = (byte)kb.Length;
+            System.Array.Copy(kb, 0, p, off, kb.Length); off += kb.Length;
+            WriteVec(p, off, hf[i]); off += 12;
+            BitConverter.GetBytes(masses[i]).CopyTo(p, off); off += 4;
+        }
+        nm.Send(p);
+        Debug.Log($"[NetProp] Manifest sent ({props.Count} props)");
     }
 
-    // Отпустить из рук с заданной скоростью (0 — просто положить)
-    public void Release(Vector3 velocity, Vector3 angular, Collider ignore)
+    /// Returns a stable hierarchy path from the root scene object.
+    string GetHierarchyPath()
     {
+        var parts = new List<string>();
+        var t = transform;
+        while (t != null)
+        {
+            parts.Add(t.name);
+            t = t.parent;
+        }
+        parts.Reverse();
+        return string.Join("/", parts);
+    }
+
+    // ---------- Network ----------
+
+    /// Sends PICKUP_REQ (0x07) and starts holding optimistically.
+    public void RequestPickup(Collider ignore)
+    {
+        var nm = GameNet.Instance;
+        if (nm == null || !nm.IsConnected) return;
+
+        // Optimistic hold.
+        IsHeld = true;
+        serverOwned = false;
+        pendingGrant = true;
+        grantRequestTime = Time.time;
+        Body.isKinematic = true;
+        SetIgnore(ignore, true);
+
+        // Send 0x07 [id:str][propId:4]
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
+        int sid = ServerId >= 0 ? ServerId : Id;
+        var p = new byte[1 + 1 + idBytes.Length + 4];
+        p[0] = PacketPickupReq;
+        int off = IdCodec.Write(p, 1, nm.LocalId);
+        BitConverter.GetBytes(sid).CopyTo(p, off);
+        nm.Send(p);
+        Debug.Log($"[NetProp] PICKUP_REQ prop={Id} serverId={sid}");
+    }
+
+    /// Sends PROP_RELEASE (0x08) and drops the prop.
+    public void RequestRelease(Vector3 velocity, Vector3 angularVelocity, Collider ignore)
+    {
+        var nm = GameNet.Instance;
+        if (nm == null || !nm.IsConnected) return;
+
         IsHeld = false;
-        ownedSince = Time.time;
+        pendingGrant = false;
+        serverOwned = false;
         Body.isKinematic = false;
         Body.linearVelocity = velocity;
-        Body.angularVelocity = angular;
-        // Сначала дать предмету отлететь, потом вернуть столкновения с бросившим
+        Body.angularVelocity = angularVelocity;
         StartCoroutine(RestoreCollision(ignore, 0.4f));
+
+        // Send 0x08 [id:str][propId:4][vel:12][angVel:12][flags:1]
+        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
+        int sid = ServerId >= 0 ? ServerId : Id;
+        var p = new byte[1 + 1 + idBytes.Length + 4 + 12 + 12 + 1];
+        p[0] = PacketRelease;
+        int off = IdCodec.Write(p, 1, nm.LocalId);
+        BitConverter.GetBytes(sid).CopyTo(p, off); off += 4;
+        WriteVec(p, off, velocity); off += 12;
+        WriteVec(p, off, angularVelocity); off += 12;
+        p[off] = 0; // flags
+        nm.Send(p);
+        Debug.Log($"[NetProp] PROP_RELEASE prop={Id} serverId={sid}");
     }
+
+    // ---------- Synced wielding ----------
 
     public void MoveHeld(Vector3 pos, Quaternion rot)
     {
@@ -206,22 +309,34 @@ public class NetProp : MonoBehaviour
             if (c != null && c.enabled) Physics.IgnoreCollision(c, other, ignore);
     }
 
-    // ---------- Синхронизация ----------
+    // ---------- Sync loop ----------
 
     void Update()
     {
-        if (transform.position.y < startPos.y - 50f && (IsOwned || !hasRemoteTarget))
+        // Grant timeout rollback.
+        if (pendingGrant && Time.time - grantRequestTime > GrantTimeout)
         {
-            // Улетел за карту — вернуть на место
+            pendingGrant = false;
+            if (!serverOwned)
+            {
+                IsHeld = false;
+                Body.isKinematic = true;
+                transform.SetPositionAndRotation(startPos, startRot);
+                Debug.Log($"[NetProp] Grant timeout, rollback prop={Id}");
+            }
+        }
+
+        if (transform.position.y < startPos.y - 50f && (serverOwned || !hasRemoteTarget))
+        {
             Body.isKinematic = true;
             transform.SetPositionAndRotation(startPos, startRot);
-            if (IsOwned) { Send(2); IsOwned = false; IsHeld = false; }
+            if (serverOwned) { Send(2); serverOwned = false; IsHeld = false; }
             return;
         }
 
-        if (IsOwned)
+        if (serverOwned)
         {
-            if (!IsHeld && Settled()) { Send(2); IsOwned = false; Body.isKinematic = true; return; }
+            if (!IsHeld && Settled()) { Send(2); serverOwned = false; Body.isKinematic = true; return; }
             sendTimer += Time.deltaTime;
             if (sendTimer >= SendInterval) { sendTimer = 0; Send((byte)(IsHeld ? 1 : 0)); }
         }
@@ -234,11 +349,10 @@ public class NetProp : MonoBehaviour
         }
     }
 
-    // Предмет остановился (или его гоняют слишком долго) — отпускаем владение
     bool Settled()
     {
         if (Time.time - ownedSince < 0.5f) return false;
-        if (Time.time - ownedSince > 10f) return true;
+        if (Time.time - ownedSince > 10f && serverOwned) return true;
         if (Body.IsSleeping()) return true;
         bool slow = Body.linearVelocity.sqrMagnitude < 0.01f && Body.angularVelocity.sqrMagnitude < 0.04f;
         if (!slow) { slowSince = -1f; return false; }
@@ -251,10 +365,11 @@ public class NetProp : MonoBehaviour
         var nm = GameNet.Instance;
         if (nm == null || !nm.IsConnected) return;
         byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
+        int sid = ServerId >= 0 ? ServerId : Id;
         var p = new byte[1 + 1 + idBytes.Length + 4 + 12 + 16 + 12 + 1];
         p[0] = PacketState;
         int off = IdCodec.Write(p, 1, nm.LocalId);
-        BitConverter.GetBytes(Id).CopyTo(p, off); off += 4;
+        BitConverter.GetBytes(sid).CopyTo(p, off); off += 4;
         Vector3 pos = transform.position;
         Quaternion rot = transform.rotation;
         Vector3 vel = Body.isKinematic ? Vector3.zero : Body.linearVelocity;
@@ -270,47 +385,207 @@ public class NetProp : MonoBehaviour
 
     void OnPacket(string localId, byte[] data)
     {
-        if (data.Length < 3 || data[0] != PacketState) return;
+        if (data.Length < 2) return;
+
+        switch (data[0])
+        {
+            case PacketManifestAck:
+                HandleManifestAck(data);
+                return;
+
+            case PacketPropGrant:
+                HandlePropGrant(data, localId);
+                return;
+
+            case PacketPropReleaseEvent:
+                HandlePropReleaseEvent(data, localId);
+                return;
+
+            case PacketPropSnapshot:
+                HandlePropSnapshot(data);
+                return;
+
+            case PacketState:
+                HandlePropState(data, localId);
+                return;
+        }
+    }
+
+    void HandleManifestAck(byte[] data)
+    {
+        // [count:2][propId:4 * count]
+        if (data.Length < 3) return;
+        int count = data[1] | (data[2] << 8);
+        if (data.Length < 3 + count * 4) return;
+
+        for (int i = 0; i < count && i < props.Count; i++)
+        {
+            int serverId = BitConverter.ToInt32(data, 3 + i * 4);
+            if (props.TryGetValue(i, out var prop))
+                prop.ServerId = serverId;
+        }
+        Debug.Log($"[NetProp] MANIFEST_ACK: {count} props mapped");
+    }
+
+    void HandlePropGrant(byte[] data, string localId)
+    {
+        // [propId:4][holderId:str][flags:1]
+        if (data.Length < 6) return;
+        int sid = BitConverter.ToInt32(data, 1);
+        var prop = FindByServerId(sid);
+        if (prop == null) return;
+
+        string holder = IdCodec.Read(data, 5, out _);
+        bool isUs = holder == localId;
+
+        if (isUs)
+        {
+            prop.pendingGrant = false;
+            prop.serverOwned = true;
+            prop.ownedSince = Time.time;
+            prop.slowSince = -1f;
+            prop.hasRemoteTarget = false;
+            prop.Body.isKinematic = prop.IsHeld;
+            if (!prop.IsHeld)
+            {
+                prop.Body.isKinematic = false;
+                prop.Body.WakeUp();
+            }
+            Debug.Log($"[NetProp] PROP_GRANT: we own prop={prop.Id} held={prop.IsHeld}");
+        }
+        else
+        {
+            // Someone else took it — rollback if we were waiting.
+            if (prop.pendingGrant)
+            {
+                prop.pendingGrant = false;
+                prop.IsHeld = false;
+                prop.Body.isKinematic = true;
+                prop.transform.SetPositionAndRotation(prop.startPos, prop.startRot);
+            }
+            prop.serverOwned = false;
+            prop.LastThrower = holder;
+            Debug.Log($"[NetProp] PROP_GRANT: {holder} owns prop={prop.Id}");
+        }
+    }
+
+    void HandlePropReleaseEvent(byte[] data, string localId)
+    {
+        // [propId:4][ownerId:str][vel:12][angVel:12][flags:1]
+        if (data.Length < 5) return;
+        int sid = BitConverter.ToInt32(data, 1);
+        var prop = FindByServerId(sid);
+        if (prop == null) return;
+
+        string prevOwner = IdCodec.Read(data, 5, out int off);
+        if (off + 25 > data.Length) return;
+
+        Vector3 vel = ReadVec(data, off); off += 12;
+        Vector3 angVel = ReadVec(data, off); off += 12;
+        byte flags = data[off];
+        bool isFree = string.IsNullOrEmpty(prevOwner) || (flags & 1) != 0;
+
+        if (prevOwner == localId)
+        {
+            prop.serverOwned = false;
+            prop.pendingGrant = false;
+        }
+
+        prop.IsHeld = false;
+
+        if (isFree)
+        {
+            prop.serverOwned = false;
+            prop.Body.isKinematic = true;
+            prop.transform.SetPositionAndRotation(prop.startPos, prop.startRot);
+        }
+        else
+        {
+            // Remote owner released — follow the physics.
+            prop.hasRemoteTarget = true;
+            prop.lastRemotePacket = Time.time;
+            prop.Body.isKinematic = true;
+            prop.targetPos = prop.transform.position;
+            prop.targetRot = prop.transform.rotation;
+        }
+
+        Debug.Log($"[NetProp] PROP_RELEASE_EVENT prop={prop.Id} owner={prevOwner} free={isFree}");
+    }
+
+    void HandlePropSnapshot(byte[] data)
+    {
+        // [count:2][{propId:4, ownerId:str, held:1}*]
+        if (data.Length < 3) return;
+        int count = data[1] | (data[2] << 8);
+        int off = 3;
+        for (int i = 0; i < count; i++)
+        {
+            if (off + 5 > data.Length) break;
+            int sid = BitConverter.ToInt32(data, off); off += 4;
+            string owner = IdCodec.Read(data, off, out off);
+            if (off >= data.Length) break;
+            byte held = data[off++];
+            var prop = FindByServerId(sid);
+            if (prop == null) continue;
+            prop.serverOwned = false;
+            prop.pendingGrant = false;
+            prop.IsHeld = held != 0;
+            prop.Body.isKinematic = true;
+            prop.hasRemoteTarget = false;
+            prop.transform.SetPositionAndRotation(prop.startPos, prop.startRot);
+        }
+        Debug.Log($"[NetProp] PROP_SNAPSHOT: {count} entries");
+    }
+
+    void HandlePropState(byte[] data, string localId)
+    {
+        if (data.Length < 3) return;
         string sender = IdCodec.Read(data, 1, out int off);
         if (sender == localId) return;
         if (data.Length < off + 4) return;
-        if (BitConverter.ToInt32(data, off) != Id) return;
-        off += 4;
+        int sid = BitConverter.ToInt32(data, off); off += 4;
+        var prop = FindByServerId(sid);
+        if (prop == null) return;
 
-        if (data.Length < off + 41) return; // pos(12) + rot(16) + vel(12) + flags(1)
+        if (data.Length < off + 41) return;
 
-        if (IsHeld) return; // у нас в руках — не отдаём
-        IsOwned = false;
-        Body.isKinematic = true;
+        if (prop.IsHeld) return;
+        prop.serverOwned = false;
+        prop.Body.isKinematic = true;
 
-        targetPos = ReadVec(data, off); off += 12;
-        targetRot = new Quaternion(BitConverter.ToSingle(data, off), BitConverter.ToSingle(data, off + 4),
-                                   BitConverter.ToSingle(data, off + 8), BitConverter.ToSingle(data, off + 12));
+        prop.targetPos = ReadVec(data, off); off += 12;
+        prop.targetRot = new Quaternion(BitConverter.ToSingle(data, off), BitConverter.ToSingle(data, off + 4),
+                                        BitConverter.ToSingle(data, off + 8), BitConverter.ToSingle(data, off + 12));
         off += 16;
-        off += 12; // vel не используется приёмником
+        off += 12;
         byte flags = data[off];
-        lastRemotePacket = Time.time;
-        hasRemoteTarget = (flags & 2) == 0;
-        LastThrower = sender;
-        if ((flags & 2) != 0) transform.SetPositionAndRotation(targetPos, targetRot);
+        prop.lastRemotePacket = Time.time;
+        prop.hasRemoteTarget = (flags & 2) == 0;
+        prop.LastThrower = sender;
+        if ((flags & 2) != 0) prop.transform.SetPositionAndRotation(prop.targetPos, prop.targetRot);
 
-        // Чужой игрок держит предмет — поднять ему руки
         if ((flags & 1) != 0 && PositionSync.TryGetRemote(sender, out _, out var walk) && walk != null)
             walk.holdUntil = Time.time + 0.3f;
     }
 
-    // ---------- Удары о мир ----------
+    static NetProp FindByServerId(int sid)
+    {
+        foreach (var kv in props)
+            if (kv.Value.ServerId == sid) return kv.Value;
+        return null;
+    }
+
+    // ---------- Collisions ----------
 
     void OnCollisionEnter(Collision col)
     {
-        if (!IsOwned || IsHeld) return;
+        if (!serverOwned || IsHeld) return;
         float speed = col.relativeVelocity.magnitude;
 
-        // Толкнуть другой предмет, в который врезались
         var other = Find(col.collider);
-        if (other != null && !other.IsOwned && speed > 1f)
+        if (other != null && !other.serverOwned && speed > 1f)
         {
-            other.TakeOwnership(LastThrower);
+            other.LastThrower = LastThrower;
             other.Body.AddForceAtPosition(-col.relativeVelocity * Body.mass * 0.5f, col.GetContact(0).point, ForceMode.Impulse);
         }
 
@@ -323,7 +598,6 @@ public class NetProp : MonoBehaviour
             BroadcastSound(Sfx.Impact, point, vol);
         }
 
-        // Попали в другого игрока
         var avatar = col.collider.GetComponentInParent<RemoteAvatar>();
         if (avatar != null && speed > 3f && !string.IsNullOrEmpty(LastThrower))
         {

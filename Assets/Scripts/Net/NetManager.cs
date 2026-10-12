@@ -8,6 +8,7 @@ using UnityEngine;
 public class NetManager : IDisposable
 {
     public event Action<string, byte[]> OnPacketReceived;
+    public event Action OnIdAssigned;
 
     private UdpClient socket;
     private Thread recvThread;
@@ -62,6 +63,7 @@ public class NetManager : IDisposable
             LocalId = System.Text.Encoding.UTF8.GetString(data, 1, data.Length - 1);
             IsConnected = true;
             Debug.Log($"[Net] Got ID: {LocalId}");
+            OnIdAssigned?.Invoke();
             return;
         }
 
@@ -70,6 +72,17 @@ public class NetManager : IDisposable
 
     public void Dispose()
     {
+        if (IsConnected && !string.IsNullOrEmpty(LocalId))
+        {
+            // 0x0D DISCONNECT: [id:str]
+            byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(LocalId);
+            var p = new byte[1 + 1 + idBytes.Length];
+            p[0] = 0x0D;
+            p[1] = (byte)idBytes.Length;
+            System.Array.Copy(idBytes, 0, p, 2, idBytes.Length);
+            SendRaw(serverEndpoint, p);
+        }
+
         running = false;
         socket?.Close();
         recvThread?.Join(500);

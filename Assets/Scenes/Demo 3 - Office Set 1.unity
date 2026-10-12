@@ -431,6 +431,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5120088925346286546, guid: 5b2e8dee3d6114a3e8b5b3b6ab6fec7f, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.924
+      objectReference: {fileID: 0}
+    - target: {fileID: 5120088925346286546, guid: 5b2e8dee3d6114a3e8b5b3b6ab6fec7f, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.021
+      objectReference: {fileID: 0}
     - target: {fileID: 6434875205300668232, guid: 5b2e8dee3d6114a3e8b5b3b6ab6fec7f, type: 3}
       propertyPath: mouseSensitivity
       value: 20

@@ -208,13 +208,13 @@ public class PlayerController : MonoBehaviour
     {
         var rb = hit.rigidbody;
         if (rb == null || hit.moveDirection.y < -0.3f) return; // стоим сверху — не толкаем
-        var prop = NetProp.Find(hit.collider);
-        if (prop != null)
-        {
-            if (prop.IsHeld) return;
-            prop.TakeOwnership(GameNet.Instance?.LocalId);
-        }
-        if (rb.isKinematic) return;
+            var prop = NetProp.Find(hit.collider);
+            if (prop != null)
+            {
+                if (prop.IsHeld) return;
+                prop.TakeOwnership(GameNet.Instance?.LocalId);
+            }
+            if (rb.isKinematic) return;
 
         // Разгоняем предмет до своей скорости, не быстрее
         Vector3 dir = new Vector3(hit.moveDirection.x, 0, hit.moveDirection.z).normalized;
