@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Text;
 
 namespace Game.Scripts.Net.Packets
@@ -18,15 +17,6 @@ namespace Game.Scripts.Net.Packets
             int length = buffer[offset];
             next = offset + 1 + length;
             return Encoding.UTF8.GetString(buffer, offset + 1, length);
-        }
-
-        public static int StableIndex(string id, int count)
-        {
-            unchecked
-            {
-                var hash = id.Aggregate(17, (current, c) => current * 31 + c);
-                return (hash & 0x7fffffff) % count;
-            }
         }
     }
 }

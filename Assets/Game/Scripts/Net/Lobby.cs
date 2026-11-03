@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Game.Scripts.Net.Models;
 using Game.Scripts.Net.Packets;
 using UnityEngine;
@@ -9,10 +10,11 @@ namespace Game.Scripts.Net
     public static class Lobby
     {
         private const float TimeoutSeconds = 5f;
+        private const float ExpiryCheckInterval = 1f;
 
         private static readonly Dictionary<string, LobbyPlayer> PlayersById = new(StringComparer.Ordinal);
-        private static readonly List<string> Expired = new();
         private static readonly PacketSubscription Subscription = new(OnPacket);
+        private static float _nextExpiryCheck;
 
         public static event Action<string> PlayerJoined;
         public static event Action<string> PlayerLeft;
@@ -29,18 +31,18 @@ namespace Game.Scripts.Net
         internal static void RemoveExpired()
         {
             var now = Time.unscaledTime;
-            Expired.Clear();
-            // ReSharper disable once LoopCanBePartlyConvertedToQuery
-            foreach (var player in PlayersById.Values)
-            {
-                if (now - player.LastSeen > TimeoutSeconds) Expired.Add(player.Id);
-            }
+            if (now < _nextExpiryCheck) return;
+            _nextExpiryCheck = now + ExpiryCheckInterval;
 
-            foreach (var id in Expired)
+            var expired = PlayersById.Values
+                .Where(player => now - player.LastSeen > TimeoutSeconds)
+                .Select(player => player.Id)
+                .ToList();
+
+            foreach (var id in expired)
             {
                 PlayersById.Remove(id);
                 NetDiagnostics.Log($"[Lobby] {id} left");
-                // ReSharper disable once Unity.PerformanceCriticalCodeInvocation
                 PlayerLeft?.Invoke(id);
             }
         }
@@ -49,6 +51,7 @@ namespace Game.Scripts.Net
         private static void ResetState()
         {
             Subscription.Unbind();
+            _nextExpiryCheck = 0f;
             PlayersById.Clear();
             PlayerJoined = null;
             PlayerLeft = null;

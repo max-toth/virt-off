@@ -1,5 +1,7 @@
 ﻿using Game.Scripts.Combat.Models;
 using Game.Scripts.Net;
+using Game.Scripts.Player;
+using Game.Scripts.Player.Animation;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -83,7 +85,7 @@ namespace Game.Scripts.Combat
 
         private void LateUpdate()
         {
-            if (_carrier.UpdateHold() && _hasWalk) _walk.holdUntil = Time.time + HoldAnimationTime;
+            if (_carrier.UpdateHold() && _hasWalk) _walk.HoldItem(HoldAnimationTime);
         }
 
         private void Attack(AttackKind kind)

@@ -1,4 +1,5 @@
 using Game.Scripts.Combat.Models;
+using Game.Scripts.Player.Sync;
 using UnityEngine;
 
 namespace Game.Scripts.Combat
@@ -15,16 +16,13 @@ namespace Game.Scripts.Combat
 
         private static void OnHitReceived(HitMessage hit)
         {
-            if (hit.Kind != AttackKind.Prop && TryGetRemoteWalk(hit.Attacker, out var attackerWalk))
+            if (hit.Kind != AttackKind.Prop && RemotePlayers.TryGetWalk(hit.Attacker, out var attackerWalk))
                 attackerWalk.PlayAttack(hit.Kind == AttackKind.Slap);
 
             CombatSounds.PlayHit(hit.Kind, hit.HasTarget, hit.HitObject, hit.Point);
 
-            if (hit.HasTarget && TryGetRemoteWalk(hit.Target, out var victimWalk))
+            if (hit.HasTarget && RemotePlayers.TryGetWalk(hit.Target, out var victimWalk))
                 victimWalk.PlayHit();
         }
-
-        private static bool TryGetRemoteWalk(string id, out ProceduralWalk walk) =>
-            PositionSync.TryGetRemote(id, out _, out walk) && walk != null;
     }
 }

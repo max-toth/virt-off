@@ -1,254 +1,147 @@
 using Game.Scripts.Combat;
-using Game.Scripts.Combat.Props;
-using Game.Scripts.Net;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
-public class PlayerController : MonoBehaviour
+namespace Game.Scripts.Player
 {
-    [Header("Movement")]
-    public float walkSpeed = 3f;
-    public float runSpeed = 6f;
-    public float crouchSpeed = 1.5f;
-    public float gravity = -9.81f;
-
-    [Header("Jump")]
-    [Tooltip("Высота прыжка в метрах")]
-    public float jumpHeight = 1f;
-
-    [Header("Crouch")]
-    [Tooltip("Высота CharacterController в присяде")]
-    public float crouchHeight = 1f;
-    [Tooltip("Скорость перехода стоя/присед")]
-    public float crouchTransitionSpeed = 8f;
-
-    [Header("Look")]
-    public float maxLookAngle = 80f;
-    [Tooltip("Чувствительность мыши по умолчанию (меняется в настройках)")]
-    public float mouseSensitivity = 2f;
-
-    [Header("Physics")]
-    [Tooltip("Во сколько раз быстрее своей скорости игрок толкает предметы, в которые упирается")]
-    public float pushPower = 1.2f;
-    [Tooltip("Как быстро гасится отброс от удара на земле")]
-    public float knockbackDamping = 5f;
-
-    [Header("Respawn")]
-    [Tooltip("Насколько ниже точки старта игрок может упасть, прежде чем его вернёт на старт")]
-    public float fallResetDepth = 30f;
-
-    public static PlayerController Local { get; private set; }
-
-    // Управление игроком включено (используется меню для захвата курсора)
-    public static bool ControlsActive { get; private set; }
-
-    public bool IsCrouching { get; private set; }
-    public bool IsRunning { get; private set; }
-
-    private CharacterController controller;
-    private Camera playerCamera;
-    private float verticalRotation;
-    private float verticalVelocity;
-    private Vector3 spawnPosition;
-    private Quaternion spawnRotation;
-
-    private float standHeight;
-    private Vector3 standCenter;
-    private Vector3 standCameraPos;
-    private Vector3 externalVelocity; // отброс от ударов
-    private float shake;
-
-    void Awake()
+    [RequireComponent(typeof(CharacterController))]
+    public class PlayerController : MonoBehaviour
     {
-        Local = this;
-        controller = GetComponent<CharacterController>();
-        playerCamera = GetComponentInChildren<Camera>();
-        spawnPosition = transform.position;
-        spawnRotation = transform.rotation;
+        [Header("Movement")]
+        [SerializeField] private float walkSpeed = 3f;
+        [SerializeField] private float runSpeed = 6f;
+        [SerializeField] private float crouchSpeed = 1.5f;
+        [SerializeField] private float gravity = -9.81f;
 
-        standHeight = controller.height;
-        standCenter = controller.center;
-        standCameraPos = playerCamera.transform.localPosition;
+        [Header("Jump")]
+        [Tooltip("Высота прыжка в метрах")]
+        [SerializeField] private float jumpHeight = 1f;
 
-        if (!PlayerPrefs.HasKey(GameSettings.KeyMouseSensitivity))
-            GameSettings.MouseSensitivity = mouseSensitivity;
+        [Header("Crouch")]
+        [Tooltip("Высота CharacterController в присяде")]
+        [SerializeField] private float crouchHeight = 1f;
+        [Tooltip("Скорость перехода стоя/присед")]
+        [SerializeField] private float crouchTransitionSpeed = 8f;
 
-        // Кинематический Rigidbody: двигает по-прежнему CharacterController, но игрок участвует в физике
-        // (предметы от него отскакивают, работают триггеры)
-        var rb = GetComponent<Rigidbody>();
-        if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
-        rb.isKinematic = true;
-        rb.interpolation = RigidbodyInterpolation.None;
+        [Header("Look")]
+        [SerializeField] private float maxLookAngle = 80f;
+        [Tooltip("Чувствительность мыши по умолчанию (меняется в настройках)")]
+        [SerializeField] private float mouseSensitivity = 2f;
 
-        if (GetComponent<PlayerCombat>() == null) gameObject.AddComponent<PlayerCombat>();
-    }
+        [Header("Physics")]
+        [Tooltip("Как быстро гасится отброс от удара на земле")]
+        [SerializeField] private float knockbackDamping = 5f;
 
-    // Толчок от удара, м/с
-    public void AddImpulse(Vector3 velocity)
-    {
-        externalVelocity += new Vector3(velocity.x, 0, velocity.z);
-        if (velocity.y > 0) verticalVelocity = Mathf.Max(verticalVelocity, 0) + velocity.y;
-    }
+        [Header("Respawn")]
+        [Tooltip("Насколько ниже точки старта игрок может упасть, прежде чем его вернёт на старт")]
+        [SerializeField] private float fallResetDepth = 30f;
 
-    // Тряска камеры (градусы)
-    public void Shake(float amount) => shake = Mathf.Max(shake, amount);
+        private CharacterController _controller;
+        private Camera _camera;
+        private PlayerLook _look;
+        private PlayerCrouch _crouch;
+        private PlayerMotor _motor;
+        private Vector3 _spawnPosition;
+        private Quaternion _spawnRotation;
 
-    void OnDestroy()
-    {
-        if (Local == this) Local = null;
-    }
+        public static PlayerController Local { get; private set; }
+        public static bool ControlsActive { get; private set; }
 
-    // Вернуть игрока в начальную позицию (например, если провалился сквозь пол)
-    public void Respawn()
-    {
-        // CharacterController перезаписывает transform, пока включён
-        controller.enabled = false;
-        transform.SetPositionAndRotation(spawnPosition, spawnRotation);
-        IsCrouching = false;
-        SetHeight(standHeight);
-        controller.enabled = true;
-        verticalVelocity = 0;
-        externalVelocity = Vector3.zero;
-        verticalRotation = 0;
-        playerCamera.transform.localRotation = Quaternion.identity;
-        Debug.Log("[Player] Respawned");
-    }
+        public bool IsCrouching => _crouch.IsCrouching;
 
-    void OnEnable()
-    {
-        ControlsActive = true;
-        if (GameMenu.IsOpen) return;
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-    }
-
-    void OnDisable()
-    {
-        ControlsActive = false;
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-    }
-
-    void Update()
-    {
-        var kb = Keyboard.current;
-        var ms = Mouse.current;
-        if (kb == null || ms == null) return;
-
-        playerCamera.fieldOfView = GameSettings.FieldOfView;
-
-        if (transform.position.y < spawnPosition.y - fallResetDepth)
+        private void Awake()
         {
-            Respawn();
-            return;
+            Local = this;
+            _controller = GetComponent<CharacterController>();
+            _camera = GetComponentInChildren<Camera>();
+            transform.GetPositionAndRotation(out _spawnPosition, out _spawnRotation);
+
+            var cameraTransform = _camera.transform;
+            _look = new PlayerLook(transform, cameraTransform, maxLookAngle);
+            _crouch = new PlayerCrouch(_controller, cameraTransform, crouchHeight, crouchTransitionSpeed);
+            _motor = new PlayerMotor(_controller, gravity, jumpHeight, knockbackDamping);
+
+            if (!PlayerPrefs.HasKey(GameSettings.KeyMouseSensitivity))
+                GameSettings.MouseSensitivity = mouseSensitivity;
+
+            SetupKinematicBody();
+            EnsureComponent<PlayerPropPusher>();
+            EnsureComponent<PlayerCombat>();
         }
 
-        if (GameMenu.IsOpen)
+        private void OnEnable()
         {
-            IsRunning = false;
-            Move(Vector3.zero);
-            return;
+            ControlsActive = true;
+            if (GameMenu.IsOpen) return;
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
         }
 
-        // Look
-        Vector2 lookDelta = ms.delta.ReadValue() * GameSettings.MouseSensitivity * 0.01f;
-        if (GameSettings.InvertY) lookDelta.y = -lookDelta.y;
-        transform.Rotate(0, lookDelta.x, 0);
+        private void OnDisable()
+        {
+            ControlsActive = false;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
 
-        verticalRotation = Mathf.Clamp(verticalRotation - lookDelta.y, -maxLookAngle, maxLookAngle);
-        shake = Mathf.MoveTowards(shake, 0, shake * 8f * Time.deltaTime + Time.deltaTime);
-        float t = Time.time * 40f;
-        playerCamera.transform.localRotation = Quaternion.Euler(
-            verticalRotation + (Mathf.PerlinNoise(t, 0) - 0.5f) * 2f * shake,
-            (Mathf.PerlinNoise(0, t) - 0.5f) * 2f * shake,
-            (Mathf.PerlinNoise(t, t) - 0.5f) * shake);
+        private void OnDestroy()
+        {
+            if (Local == this) Local = null;
+        }
 
-        // Присед (удерживать Ctrl). Встать можно, только если над головой свободно.
-        bool wantCrouch = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
-        if (wantCrouch) IsCrouching = true;
-        else if (IsCrouching && CanStandUp()) IsCrouching = false;
-        UpdateCrouchHeight();
+        private void Update()
+        {
+            if (!PlayerInputReader.TryRead(out var input)) return;
 
-        // Move
-        Vector2 moveInput = Vector2.zero;
-        if (kb.wKey.isPressed) moveInput.y = 1;
-        if (kb.sKey.isPressed) moveInput.y = -1;
-        if (kb.aKey.isPressed) moveInput.x = -1;
-        if (kb.dKey.isPressed) moveInput.x = 1;
-        moveInput = moveInput.normalized;
+            _camera.fieldOfView = GameSettings.FieldOfView;
 
-        // Бег (Shift) — только вперёд и не в присяде
-        bool shift = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
-        IsRunning = shift && !IsCrouching && moveInput.y > 0;
-        float speed = IsCrouching ? crouchSpeed : (IsRunning ? runSpeed : walkSpeed);
-
-        // Прыжок (пробел) — с земли и не в присяде
-        if (kb.spaceKey.wasPressedThisFrame && controller.isGrounded && !IsCrouching)
-            verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
-
-        Vector3 horizontal = transform.TransformDirection(new Vector3(moveInput.x, 0, moveInput.y)) * speed;
-        Move(horizontal);
-    }
-
-    // Горизонтальная скорость в м/с + гравитация
-    void Move(Vector3 horizontal)
-    {
-        verticalVelocity += gravity * Time.deltaTime;
-        externalVelocity = Vector3.MoveTowards(externalVelocity, Vector3.zero,
-            externalVelocity.magnitude * (controller.isGrounded ? knockbackDamping : 1f) * Time.deltaTime);
-        Vector3 velocity = horizontal + externalVelocity;
-        velocity.y = verticalVelocity;
-
-        controller.Move(velocity * Time.deltaTime);
-
-        // Небольшая прижимающая скорость, чтобы isGrounded не мигал на ступеньках и склонах
-        if (controller.isGrounded && verticalVelocity < 0)
-            verticalVelocity = -2f;
-    }
-
-    // Толкаем предметы, в которые упёрлись (стулья и т.п.)
-    void OnControllerColliderHit(ControllerColliderHit hit)
-    {
-        var rb = hit.rigidbody;
-        if (rb == null || hit.moveDirection.y < -0.3f) return; // стоим сверху — не толкаем
-            if (NetProp.TryFind(hit.collider, out var prop))
+            if (transform.position.y < _spawnPosition.y - fallResetDepth)
             {
-                if (prop.IsHeld) return;
-                prop.TakeOwnership(GameNet.Instance?.LocalId);
+                Respawn();
+                return;
             }
-            if (rb.isKinematic) return;
 
-        // Разгоняем предмет до своей скорости, не быстрее
-        Vector3 dir = new Vector3(hit.moveDirection.x, 0, hit.moveDirection.z).normalized;
-        float speed = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude * pushPower;
-        float along = Vector3.Dot(rb.linearVelocity, dir);
-        if (along < speed)
-            rb.AddForceAtPosition(dir * (speed - along), hit.point, ForceMode.VelocityChange);
-    }
+            if (GameMenu.IsOpen)
+            {
+                _motor.Move(Vector3.zero);
+                return;
+            }
 
-    bool CanStandUp()
-    {
-        float radius = controller.radius * 0.95f;
-        Vector3 bottom = transform.position + controller.center + Vector3.up * (controller.height / 2f - radius);
-        float distance = standHeight - controller.height;
-        if (distance <= 0.01f) return true;
-        return !Physics.SphereCast(bottom, radius, Vector3.up, out _, distance,
-            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
-    }
+            _look.Update(input.Look);
+            _crouch.Update(input.Crouch);
 
-    void UpdateCrouchHeight()
-    {
-        float target = IsCrouching ? crouchHeight : standHeight;
-        if (Mathf.Approximately(controller.height, target)) return;
-        SetHeight(Mathf.MoveTowards(controller.height, target, crouchTransitionSpeed * Time.deltaTime));
-    }
+            var isRunning = input.Run && !IsCrouching && input.Move.y > 0f;
+            var speed = IsCrouching ? crouchSpeed : isRunning ? runSpeed : walkSpeed;
 
-    // Меняет высоту капсулы, не отрывая ноги от пола; камера опускается вместе с головой
-    void SetHeight(float height)
-    {
-        float delta = standHeight - height;
-        controller.height = height;
-        controller.center = standCenter - Vector3.up * (delta / 2f);
-        playerCamera.transform.localPosition = standCameraPos - Vector3.up * delta;
+            if (input.Jump && !IsCrouching) _motor.Jump();
+            _motor.Move(transform.TransformDirection(new Vector3(input.Move.x, 0f, input.Move.y)) * speed);
+        }
+
+        public void AddImpulse(Vector3 velocity) => _motor.AddImpulse(velocity);
+
+        public void Shake(float degrees) => _look.AddShake(degrees);
+
+        public void Respawn()
+        {
+            // CharacterController перезаписывает transform, пока включён.
+            _controller.enabled = false;
+            transform.SetPositionAndRotation(_spawnPosition, _spawnRotation);
+            _crouch.Stand();
+            _controller.enabled = true;
+            _motor.Stop();
+            _look.Reset();
+        }
+
+        // Кинематический Rigidbody: двигает CharacterController, но предметы отскакивают от игрока.
+        private void SetupKinematicBody()
+        {
+            if (!TryGetComponent(out Rigidbody body)) body = gameObject.AddComponent<Rigidbody>();
+            body.isKinematic = true;
+            body.interpolation = RigidbodyInterpolation.None;
+        }
+
+        private void EnsureComponent<T>() where T : Component
+        {
+            if (!TryGetComponent(out T _)) gameObject.AddComponent<T>();
+        }
     }
 }

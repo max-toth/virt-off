@@ -9,7 +9,7 @@ namespace Game.Scripts.Net
         public static bool TryGetConnected(out NetManager manager)
         {
             manager = Instance;
-            return manager != null && manager.IsConnected;
+            return manager is { IsConnected: true };
         }
 
         internal static void Set(NetManager manager) => Instance = manager;

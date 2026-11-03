@@ -27,20 +27,23 @@ namespace Game.Scripts.Net
             _manager.IdAssigned += OnIdAssigned;
             _manager.StartClient(host, port);
             GameNet.Set(_manager);
+            NetworkPlayerLoop.Install(Pump);
         }
-
-        // ReSharper disable Unity.PerformanceCriticalCodeInvocation
-        private void Update()
-        {
-            _manager.ProcessIncoming();
-            Lobby.RemoveExpired();
-        }
-        // ReSharper restore Unity.PerformanceCriticalCodeInvocation
 
         private void OnDestroy()
         {
+            NetworkPlayerLoop.Uninstall();
             _manager.IdAssigned -= OnIdAssigned;
             _manager.Dispose();
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetState() => NetworkPlayerLoop.Uninstall();
+
+        private void Pump()
+        {
+            _manager.ProcessIncoming();
+            Lobby.RemoveExpired();
         }
 
         private void OnIdAssigned() => NetDiagnostics.Log($"[Net] Got ID: {_manager.LocalId}");

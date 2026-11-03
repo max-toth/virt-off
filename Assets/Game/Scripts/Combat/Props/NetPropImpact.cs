@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Scripts.Audio;
 using Game.Scripts.Audio.Models;
 using Game.Scripts.Combat.Models;
+using Game.Scripts.Player.Sync;
 using UnityEngine;
 
 namespace Game.Scripts.Combat.Props

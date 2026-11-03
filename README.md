@@ -65,8 +65,9 @@ Assets/
 ├── Game/                          — project content
 │   ├── Scripts/
 │   │   ├── Net/
-│   │   │   ├── NetClient.cs           — Connects before the first scene (ServerConfig / -server arg), pumps packets each frame
+│   │   │   ├── NetClient.cs           — Connects before the first scene (ServerConfig / -server arg), installs the network PlayerLoop step
 │   │   │   ├── NetManager.cs          — UDP transport: receive thread → main-thread queue, PacketReceived / IdAssigned events
+│   │   │   ├── NetworkPlayerLoop.cs   — PreUpdate step: incoming packets are handled before any Update
 │   │   │   ├── GameNet.cs             — Access point to the active connection (Instance, LocalId, TryGetConnected)
 │   │   │   ├── Lobby.cs               — Players present in the room (by voice / position packets), join / leave events
 │   │   │   ├── NetDiagnostics.cs      — Network logs, enabled by NET_DEBUG
@@ -74,11 +75,28 @@ Assets/
 │   │   │   ├── Models/LobbyPlayer.cs  — Lobby player: id, muted, speaking
 │   │   │   └── Packets/               — PacketType, PacketWriter, PacketReader, PacketSubscription, IdCodec
 │   │   ├── Player/
-│   │   │   ├── PlayerController.cs        — FPS movement (WASD + mouse look)
-│   │   │   ├── NetworkPlayerController.cs — Enables PlayerController after net connect
-│   │   │   ├── PositionSync.cs            — Sends/receives player transforms
-│   │   │   ├── RemoteAvatar.cs            — Representation of remote players
-│   │   │   └── ProceduralWalk.cs          — Procedural walk animation
+│   │   │   ├── PlayerController.cs        — Local player: wires input to look / crouch / motor, respawn
+│   │   │   ├── PlayerInputReader.cs       — Keyboard + mouse → PlayerInputState
+│   │   │   ├── PlayerLook.cs              — Mouse look and camera shake
+│   │   │   ├── PlayerMotor.cs             — Gravity, jump, knockback, CharacterController.Move
+│   │   │   ├── PlayerCrouch.cs            — Crouch height and stand-up check
+│   │   │   ├── PlayerPropPusher.cs        — Pushes props the player walks into
+│   │   │   ├── Models/                    — PlayerInputState
+│   │   │   ├── Animation/
+│   │   │   │   ├── ProceduralWalk.cs      — Procedural animation driver (speed → gait → pose layers)
+│   │   │   │   ├── WalkRig.cs             — Rigify metarig bones and rest pose
+│   │   │   │   ├── IPoseLayer.cs          — Pose layer strategy
+│   │   │   │   ├── LocomotionLayer.cs, HitReactionLayer.cs, CarryLayer.cs, AttackLayer.cs
+│   │   │   │   └── Models/                — GaitState, GaitSettings, PoseAmplitudes
+│   │   │   └── Sync/
+│   │   │       ├── PositionSync.cs        — Sends local position, applies remote positions
+│   │   │       ├── PositionNetwork.cs     — POSITION packet
+│   │   │       ├── RemotePlayers.cs       — Registry of remote players (TryGetWalk)
+│   │   │       ├── RemotePlayer.cs        — Remote avatar + smoothing towards the last received state
+│   │   │       ├── RemoteAvatarFactory.cs — Prefab by id / copy of local model / capsule
+│   │   │       ├── RemoteAvatar.cs        — Hit target marker, collider lookup
+│   │   │       ├── NetworkPlayerController.cs — Enables controls once the server assigned an id
+│   │   │       └── Models/                — PositionMessage
 │   │   ├── Combat/
 │   │   │   ├── PlayerCombat.cs        — Local player input: routes to attacker / carrier, reacts to being hit
 │   │   │   ├── MeleeAttacker.cs       — Punch / slap: target search, knockback, prop push

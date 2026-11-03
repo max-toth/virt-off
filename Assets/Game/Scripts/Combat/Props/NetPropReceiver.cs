@@ -1,6 +1,7 @@
 using Game.Scripts.Combat.Props.Models;
 using Game.Scripts.Net;
 using Game.Scripts.Net.Packets;
+using Game.Scripts.Player.Sync;
 using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
@@ -129,8 +130,8 @@ namespace Game.Scripts.Combat.Props
 
             if (!prop.ApplyRemoteState(sender, position, rotation, flags)) return;
 
-            if ((flags & PropStateFlags.Held) != 0 && PositionSync.TryGetRemote(sender, out _, out var walk) && walk != null)
-                walk.holdUntil = Time.time + RemoteHoldAnimationTime;
+            if ((flags & PropStateFlags.Held) != 0 && RemotePlayers.TryGetWalk(sender, out var walk))
+                walk.HoldItem(RemoteHoldAnimationTime);
         }
     }
 }

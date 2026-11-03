@@ -1,79 +1,85 @@
-using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using UnityEngine;
 
-public class CreateDemo3Scene
+namespace Game.Editor
 {
-    [MenuItem("Tools/Create Demo 3 - Office Set 1")]
-    static void Execute()
+    // Генерирует основную сцену: этаж с шестью рабочими местами и игрок из префаба.
+    public static class CreateDemo3Scene
     {
-        string dstScenePath = MainSceneLoader.MainScenePath;
+        private const string MenuTitle = "Create Demo 3";
+        private const string FloorName = "Floor 0";
+        private const string WorkplacePrefabPath = "Assets/Game/Prefabs/Workplace.prefab";
+        private const string PlayerPrefabPath = "Assets/Game/Prefabs/Player.prefab";
 
-        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(dstScenePath) != null &&
-            !EditorUtility.DisplayDialog("Create Demo 3",
-                $"Сцена {dstScenePath} уже существует и будет перезаписана заново сгенерированной. Продолжить?",
-                "Перезаписать", "Отмена"))
-            return;
+        private static readonly Vector3 PlayerSpawn = new(0f, 1f, 0f);
 
-        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            return;
-
-        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-
-        var floor0 = new GameObject("Floor 0").transform;
-        var wsPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/Workplace.prefab");
-
-        var positions = new Vector3[] {
-            new Vector3(-6f, 0, -3f),
-            new Vector3(0f,  0, -3f),
-            new Vector3(6f,  0, -3f),
-            new Vector3(-6f, 0, 3f),
-            new Vector3(0f,  0, 3f),
-            new Vector3(6f,  0, 3f),
+        private static readonly Vector3[] WorkplacePositions =
+        {
+            new(-6f, 0f, -3f),
+            new(0f, 0f, -3f),
+            new(6f, 0f, -3f),
+            new(-6f, 0f, 3f),
+            new(0f, 0f, 3f),
+            new(6f, 0f, 3f)
         };
 
-        for (int i = 0; i < positions.Length; i++)
+        [MenuItem("Tools/Create Demo 3 - Office Set 1")]
+        private static void Execute()
         {
-            var ws = PrefabUtility.InstantiatePrefab(wsPrefab, floor0) as GameObject;
-            ws.transform.localPosition = positions[i];
-            ws.transform.localRotation = Quaternion.identity;
-            ws.name = $"Workplace ({i + 1})";
+            if (!TryLoadPrefab(WorkplacePrefabPath, out var workplace) || !TryLoadPrefab(PlayerPrefabPath, out var player)) return;
+            if (!ConfirmOverwrite() || !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var floor = new GameObject(FloorName).transform;
+            for (var i = 0; i < WorkplacePositions.Length; i++)
+            {
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(workplace, floor);
+                instance.transform.SetLocalPositionAndRotation(WorkplacePositions[i], Quaternion.identity);
+                instance.name = $"Workplace ({i + 1})";
+            }
+
+            InstantiatePlayer(player);
+
+            EditorSceneManager.SaveScene(scene, MainSceneLoader.MainScenePath);
+            Debug.Log($"[{MenuTitle}] {WorkplacePositions.Length} workplaces + player → {MainSceneLoader.MainScenePath}");
         }
 
-        AddPlayerToScene();
+        [MenuItem("Tools/Add Player to Current Scene")]
+        private static void AddPlayerToCurrentScene()
+        {
+            if (!TryLoadPrefab(PlayerPrefabPath, out var player)) return;
 
-        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), dstScenePath);
-        Debug.Log("Done: 6 workplaces + player");
-    }
+            var instance = InstantiatePlayer(player);
+            Undo.RegisterCreatedObjectUndo(instance, "Add Player");
+            Selection.activeGameObject = instance;
+            EditorSceneManager.MarkSceneDirty(instance.scene);
+        }
 
-    [MenuItem("Tools/Add Player to Current Scene")]
-    static void AddPlayerMenuItem()
-    {
-        AddPlayerToScene();
-        Debug.Log("Player added to scene");
-    }
+        private static GameObject InstantiatePlayer(GameObject prefab)
+        {
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            instance.transform.position = PlayerSpawn;
+            return instance;
+        }
 
-    static void AddPlayerToScene()
-    {
-        var player = new GameObject("Player");
-        player.transform.position = new Vector3(0, 1, 0);
+        private static bool ConfirmOverwrite()
+        {
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainSceneLoader.MainScenePath) == null) return true;
 
-        var cc = player.AddComponent<CharacterController>();
-        cc.height = 1.8f;
-        cc.radius = 0.4f;
-        cc.center = new Vector3(0, 0.9f, 0);
+            return EditorUtility.DisplayDialog(MenuTitle,
+                $"Сцена {MainSceneLoader.MainScenePath} уже существует и будет перезаписана заново сгенерированной. Продолжить?",
+                "Перезаписать", "Отмена");
+        }
 
-        var camGO = new GameObject("Camera");
-        camGO.transform.SetParent(player.transform);
-        camGO.transform.localPosition = new Vector3(0, 0.7f, 0);
+        private static bool TryLoadPrefab(string path, out GameObject prefab)
+        {
+            prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab != null) return true;
 
-        var cam = camGO.AddComponent<Camera>();
-        cam.fieldOfView = 70;
-        cam.nearClipPlane = 0.1f;
-        cam.farClipPlane = 100;
-
-        var aud = camGO.AddComponent<AudioListener>();
-
-        player.AddComponent<PlayerController>();
+            Debug.LogError($"[{MenuTitle}] Префаб не найден: {path}");
+            return false;
+        }
     }
 }
