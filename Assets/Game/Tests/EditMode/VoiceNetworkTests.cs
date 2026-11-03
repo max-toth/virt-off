@@ -16,7 +16,7 @@ namespace Game.Tests.EditMode
         public void SetUp()
         {
             _transport = FakeTransport.Connected();
-            VoiceNetwork.Initialize(_transport);
+            VoiceNetwork.Initialize(_transport, _transport.Router);
             _received = new List<VoicePacket>();
             VoiceNetwork.Received += _received.Add;
         }
@@ -67,7 +67,7 @@ namespace Game.Tests.EditMode
         public void Connected_RaisedOnIdAssigned()
         {
             var transport = new FakeTransport();
-            VoiceNetwork.Initialize(transport);
+            VoiceNetwork.Initialize(transport, transport.Router);
             var connected = 0;
             VoiceNetwork.Connected += () => connected++;
 
@@ -82,11 +82,12 @@ namespace Game.Tests.EditMode
         public void Reinitialize_UnsubscribesFromPreviousTransport()
         {
             var first = new FakeTransport();
-            VoiceNetwork.Initialize(first);
+            VoiceNetwork.Initialize(first, first.Router);
             var connected = 0;
             VoiceNetwork.Connected += () => connected++;
 
-            VoiceNetwork.Initialize(new FakeTransport());
+            var second = new FakeTransport();
+            VoiceNetwork.Initialize(second, second.Router);
             first.AssignId("stale");
             first.Receive(Bytes.Packet(PacketType.Voice).Str("other").Raw(9));
 

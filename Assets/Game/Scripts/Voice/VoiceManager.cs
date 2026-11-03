@@ -1,5 +1,5 @@
+using Game.Scripts.Controls;
 using Game.Scripts.Settings;
-using Game.Scripts.UI.Menu;
 using Game.Scripts.Voice.Capture;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -123,7 +123,7 @@ namespace Game.Scripts.Voice
         private void HandleHotkeys()
         {
             var keyboard = Keyboard.current;
-            if (keyboard == null || GameMenu.IsOpen) return;
+            if (keyboard == null || GameplayInput.IsBlocked) return;
 
             if (keyboard.mKey.wasPressedThisFrame)
             {

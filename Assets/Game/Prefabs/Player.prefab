@@ -14,7 +14,8 @@ GameObject:
   - component: {fileID: 3883899106211209097}
   - component: {fileID: 3000000001}
   - component: {fileID: 6992295238452227451}
-  - component: {fileID: 3837243409472594377}
+  - component: {fileID: 7264013588190455301}
+  - component: {fileID: 1851377602947316142}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -120,7 +121,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f67fb6e3c112241d3b2c8b5013ebe43b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoiceManager
---- !u!114 &3837243409472594377
+--- !u!114 &7264013588190455301
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -129,9 +130,21 @@ MonoBehaviour:
   m_GameObject: {fileID: 3498837738279640977}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 545be4ddc738749b585e3a212104daad, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayerController
+  m_Script: {fileID: 11500000, guid: 3b2b458dfa81bf148bde10254db3012a, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Game.Scripts::Game.Scripts.Combat.PlayerCombat
+--- !u!114 &1851377602947316142
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3498837738279640977}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8cfa496add7b217469290f50b2126275, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Game.Scripts::Game.Scripts.Combat.Props.PlayerPropPusher
 --- !u!1 &5643000188335040579
 GameObject:
   m_ObjectHideFlags: 0

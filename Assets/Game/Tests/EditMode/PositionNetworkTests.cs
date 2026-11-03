@@ -17,7 +17,7 @@ namespace Game.Tests.EditMode
         public void SetUp()
         {
             _transport = FakeTransport.Connected();
-            PositionNetwork.Initialize(_transport);
+            PositionNetwork.Initialize(_transport, _transport.Router);
             _received = new List<PositionMessage>();
             PositionNetwork.Received += _received.Add;
         }
@@ -41,7 +41,7 @@ namespace Game.Tests.EditMode
         public void Send_BeforeIdAssigned_SendsNothing()
         {
             var transport = new FakeTransport();
-            PositionNetwork.Initialize(transport);
+            PositionNetwork.Initialize(transport, transport.Router);
 
             PositionNetwork.Send(Vector3.zero, 0f, false);
 

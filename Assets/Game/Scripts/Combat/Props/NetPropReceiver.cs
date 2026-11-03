@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Game.Scripts.Combat.Props.Models;
-using Game.Scripts.Net;
 using Game.Scripts.Net.Packets;
 using Game.Scripts.Player.Sync;
 using UnityEngine;
@@ -14,14 +13,32 @@ namespace Game.Scripts.Combat.Props
         private const int VelocitySize = 12;
         private const float RemoteHoldAnimationTime = 0.3f;
 
-        private static readonly PacketSubscription Subscription = new(OnPacket);
         private static readonly List<int> ServerIds = new();
         private static readonly List<PropSnapshotEntry> SnapshotEntries = new();
+        private static PacketRouter _router;
 
-        public static void Initialize(INetTransport transport) => Subscription.Bind(transport);
+        public static void Initialize(PacketRouter router)
+        {
+            Shutdown();
+            _router = router;
+            router.Subscribe(PacketType.PropManifestAck, OnManifestAck);
+            router.Subscribe(PacketType.PropGrant, OnGrant);
+            router.Subscribe(PacketType.PropReleaseEvent, OnReleaseEvent);
+            router.Subscribe(PacketType.PropSnapshot, OnSnapshot);
+            router.Subscribe(PacketType.PropState, OnState);
+        }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        public static void Shutdown() => Subscription.Unbind();
+        public static void Shutdown()
+        {
+            if (_router == null) return;
+            _router.Unsubscribe(PacketType.PropManifestAck, OnManifestAck);
+            _router.Unsubscribe(PacketType.PropGrant, OnGrant);
+            _router.Unsubscribe(PacketType.PropReleaseEvent, OnReleaseEvent);
+            _router.Unsubscribe(PacketType.PropSnapshot, OnSnapshot);
+            _router.Unsubscribe(PacketType.PropState, OnState);
+            _router = null;
+        }
 
         // MANIFEST_ACK: [type][count:2][serverId:4]*
         /// <param name="serverIds">Заполняется id в порядке манифеста; предварительно очищается.</param>
@@ -97,31 +114,7 @@ namespace Game.Scripts.Combat.Props
             return !reader.Failed;
         }
 
-        private static void OnPacket(string localId, byte[] data)
-        {
-            if (data.Length < 2) return;
-
-            switch (data[0])
-            {
-                case PacketType.PropManifestAck:
-                    HandleManifestAck(data);
-                    break;
-                case PacketType.PropGrant:
-                    HandleGrant(data, localId);
-                    break;
-                case PacketType.PropReleaseEvent:
-                    HandleReleaseEvent(data, localId);
-                    break;
-                case PacketType.PropSnapshot:
-                    HandleSnapshot(data);
-                    break;
-                case PacketType.PropState:
-                    HandleState(data, localId);
-                    break;
-            }
-        }
-
-        private static void HandleManifestAck(byte[] data)
+        private static void OnManifestAck(string localId, byte[] data)
         {
             if (!TryReadManifestAck(data, ServerIds)) return;
 
@@ -131,7 +124,7 @@ namespace Game.Scripts.Combat.Props
             NetPropDiagnostics.Log($"MANIFEST_ACK: {ServerIds.Count} props mapped");
         }
 
-        private static void HandleGrant(byte[] data, string localId)
+        private static void OnGrant(string localId, byte[] data)
         {
             if (!TryReadGrant(data, out var grant) || !NetPropRegistry.TryGetByServerId(grant.PropId, out var prop)) return;
 
@@ -147,7 +140,7 @@ namespace Game.Scripts.Combat.Props
             }
         }
 
-        private static void HandleReleaseEvent(byte[] data, string localId)
+        private static void OnReleaseEvent(string localId, byte[] data)
         {
             if (!TryReadReleaseEvent(data, out var release) || !NetPropRegistry.TryGetByServerId(release.PropId, out var prop))
                 return;
@@ -157,7 +150,7 @@ namespace Game.Scripts.Combat.Props
         }
 
         // Обрезанный снимок применяется частично: прочитанные записи достоверны.
-        private static void HandleSnapshot(byte[] data)
+        private static void OnSnapshot(string localId, byte[] data)
         {
             TryReadSnapshot(data, SnapshotEntries);
 
@@ -170,7 +163,7 @@ namespace Game.Scripts.Combat.Props
             NetPropDiagnostics.Log($"PROP_SNAPSHOT: {SnapshotEntries.Count} entries");
         }
 
-        private static void HandleState(byte[] data, string localId)
+        private static void OnState(string localId, byte[] data)
         {
             if (!TryReadState(data, out var state) || state.Sender == localId) return;
             if (!NetPropRegistry.TryGetByServerId(state.PropId, out var prop)) return;

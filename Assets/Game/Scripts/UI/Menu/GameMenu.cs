@@ -1,4 +1,5 @@
 using System;
+using Game.Scripts.Controls;
 using Game.Scripts.Player;
 using Game.Scripts.Settings;
 using UnityEngine;
@@ -27,7 +28,7 @@ namespace Game.Scripts.UI.Menu
         private SettingsPresenter _settings;
         private bool _settingsShown;
 
-        /// <summary>Меню открыто: игровой ввод в это время не обрабатывается.</summary>
+        /// <summary>Меню открыто; игровой ввод в это время заблокирован через GameplayInput.</summary>
         public static bool IsOpen { get; private set; }
 
         /// <summary>Меню открылось или закрылось; аргумент — открыто ли.</summary>
@@ -58,7 +59,11 @@ namespace Game.Scripts.UI.Menu
 
         private void OnDisable() => _lobby.Dispose();
 
-        private void OnDestroy() => IsOpen = false;
+        private void OnDestroy()
+        {
+            IsOpen = false;
+            GameplayInput.SetBlocked(false);
+        }
 
         private void OnApplicationQuit() => GameSettings.Save();
 
@@ -121,6 +126,7 @@ namespace Game.Scripts.UI.Menu
         private void SetOpen(bool open)
         {
             IsOpen = open;
+            GameplayInput.SetBlocked(open);
             _menuRoot.SetVisible(open);
             OpenChanged?.Invoke(open);
         }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.Scripts.Net;
+using Game.Scripts.Net.Packets;
 
 namespace Game.Tests.EditMode.Support
 {
@@ -8,6 +9,11 @@ namespace Game.Tests.EditMode.Support
     public sealed class FakeTransport : INetTransport
     {
         public const string DefaultId = "me";
+
+        public FakeTransport() => Router = new PacketRouter(this);
+
+        /// <summary>Маршрутизатор входящих пакетов этого транспорта.</summary>
+        public PacketRouter Router { get; }
 
         public string LocalId { get; private set; }
         public bool IsConnected { get; private set; }

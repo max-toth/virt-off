@@ -1,7 +1,6 @@
-using Game.Scripts.Combat.Props;
 using UnityEngine;
 
-namespace Game.Scripts.Player
+namespace Game.Scripts.Combat.Props
 {
     [RequireComponent(typeof(CharacterController))]
     public class PlayerPropPusher : MonoBehaviour

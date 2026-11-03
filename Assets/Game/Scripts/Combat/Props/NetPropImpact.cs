@@ -33,7 +33,7 @@ namespace Game.Scripts.Combat.Props
 
         private void OnCollisionEnter(Collision collision)
         {
-            if (!_prop.IsServerOwned || _prop.IsHeld) return;
+            if (!_prop.HasAuthority || _prop.IsHeld) return;
 
             var speed = collision.relativeVelocity.magnitude;
             var point = collision.contactCount > 0 ? collision.GetContact(0).point : transform.position;
@@ -45,7 +45,7 @@ namespace Game.Scripts.Combat.Props
 
         private void PushOtherProp(Collision collision, float speed, Vector3 point)
         {
-            if (speed <= PushPropSpeed || !NetProp.TryFind(collision.collider, out var other) || other.IsServerOwned) return;
+            if (speed <= PushPropSpeed || !NetProp.TryFind(collision.collider, out var other) || other.HasAuthority) return;
 
             other.LastThrower = _prop.LastThrower;
             other.Body.AddForceAtPosition(

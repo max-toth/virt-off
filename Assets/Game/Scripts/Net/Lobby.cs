@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Game.Scripts.Net.Models;
 using Game.Scripts.Net.Packets;
 using UnityEngine;
@@ -14,7 +13,8 @@ namespace Game.Scripts.Net
         private const float ExpiryCheckInterval = 1f;
 
         private static readonly Dictionary<string, LobbyPlayer> PlayersById = new(StringComparer.Ordinal);
-        private static readonly PacketSubscription Subscription = new(OnPacket);
+        private static readonly List<string> Expired = new();
+        private static PacketRouter _router;
         private static float _nextExpiryCheck;
 
         /// <summary>Новый игрок; аргумент — его id.</summary>
@@ -32,42 +32,57 @@ namespace Game.Scripts.Net
             if (PlayersById.TryGetValue(id, out var player)) player.MarkSpeaking();
         }
 
-        internal static void RemoveExpired()
+        public static void Initialize(PacketRouter router)
         {
-            var now = Time.unscaledTime;
-            if (now < _nextExpiryCheck) return;
-            _nextExpiryCheck = now + ExpiryCheckInterval;
-
-            var expired = PlayersById.Values
-                .Where(player => now - player.LastSeen > TimeoutSeconds)
-                .Select(player => player.Id)
-                .ToList();
-
-            foreach (var id in expired)
-            {
-                PlayersById.Remove(id);
-                NetDiagnostics.Log($"[Lobby] {id} left");
-                PlayerLeft?.Invoke(id);
-            }
+            Unsubscribe();
+            _router = router;
+            router.Subscribe(PacketType.Voice, OnPlayerPacket);
+            router.Subscribe(PacketType.Position, OnPlayerPacket);
         }
 
-        public static void Initialize(INetTransport transport) => Subscription.Bind(transport);
-
-        /// <summary>Отписывает от транспорта, забывает игроков и подписчиков событий.</summary>
+        /// <summary>Отписывается от пакетов, забывает игроков и подписчиков событий.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         public static void Shutdown()
         {
-            Subscription.Unbind();
+            Unsubscribe();
             _nextExpiryCheck = 0f;
             PlayersById.Clear();
             PlayerJoined = null;
             PlayerLeft = null;
         }
 
-        private static void OnPacket(string localId, byte[] data)
+        internal static void RemoveExpired()
         {
-            if (data.Length < 2 || (data[0] != PacketType.Voice && data[0] != PacketType.Position)) return;
+            var now = Time.unscaledTime;
+            if (now < _nextExpiryCheck) return;
+            _nextExpiryCheck = now + ExpiryCheckInterval;
 
+            foreach (var player in PlayersById.Values)
+            {
+                if (now - player.LastSeen > TimeoutSeconds) Expired.Add(player.Id);
+            }
+
+            foreach (var id in Expired)
+            {
+                PlayersById.Remove(id);
+                NetDiagnostics.Log($"[Lobby] {id} left");
+                PlayerLeft?.Invoke(id);
+            }
+
+            Expired.Clear();
+        }
+
+        private static void Unsubscribe()
+        {
+            if (_router == null) return;
+            _router.Unsubscribe(PacketType.Voice, OnPlayerPacket);
+            _router.Unsubscribe(PacketType.Position, OnPlayerPacket);
+            _router = null;
+        }
+
+        // VOICE и POSITION начинаются с [sender:str].
+        private static void OnPlayerPacket(string localId, byte[] data)
+        {
             var reader = new PacketReader(data);
             var id = reader.ReadString();
             if (reader.Failed || id == localId) return;

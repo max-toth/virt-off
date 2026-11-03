@@ -1,7 +1,7 @@
 ﻿using Game.Scripts.Combat.Models;
+using Game.Scripts.Controls;
 using Game.Scripts.Player;
 using Game.Scripts.Player.Animation;
-using Game.Scripts.UI.Menu;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -23,7 +23,7 @@ namespace Game.Scripts.Combat
         private ProceduralWalk _walk;
         private bool _hasWalk;
 
-        public bool IsActive => _player.enabled && !GameMenu.IsOpen;
+        public bool IsActive => _player.enabled && !GameplayInput.IsBlocked;
         public bool IsHolding => _carrier.IsHolding;
         public bool HasAimedProp => _carrier.HasAimedProp;
 

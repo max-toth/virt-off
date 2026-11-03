@@ -1,6 +1,5 @@
-using Game.Scripts.Combat;
+using Game.Scripts.Controls;
 using Game.Scripts.Settings;
-using Game.Scripts.UI.Menu;
 using UnityEngine;
 
 namespace Game.Scripts.Player
@@ -67,14 +66,12 @@ namespace Game.Scripts.Player
             GameSettings.ApplyDefaultMouseSensitivity(mouseSensitivity);
 
             SetupKinematicBody();
-            EnsureComponent<PlayerPropPusher>();
-            EnsureComponent<PlayerCombat>();
         }
 
         private void OnEnable()
         {
             ControlsActive = true;
-            if (GameMenu.IsOpen) return;
+            if (GameplayInput.IsBlocked) return;
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
@@ -103,7 +100,7 @@ namespace Game.Scripts.Player
                 return;
             }
 
-            if (GameMenu.IsOpen)
+            if (GameplayInput.IsBlocked)
             {
                 _motor.Move(Vector3.zero);
                 return;
@@ -143,11 +140,6 @@ namespace Game.Scripts.Player
             if (!TryGetComponent(out Rigidbody body)) body = gameObject.AddComponent<Rigidbody>();
             body.isKinematic = true;
             body.interpolation = RigidbodyInterpolation.None;
-        }
-
-        private void EnsureComponent<T>() where T : Component
-        {
-            if (!TryGetComponent(out T _)) gameObject.AddComponent<T>();
         }
     }
 }

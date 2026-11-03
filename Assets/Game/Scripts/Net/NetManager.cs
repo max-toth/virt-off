@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using Game.Scripts.Net.Packets;
+using UnityEngine;
 
 namespace Game.Scripts.Net
 {
@@ -27,10 +28,13 @@ namespace Game.Scripts.Net
         public string LocalId { get; private set; }
         public bool IsConnected { get; private set; }
 
+        /// <param name="host">IPv4/IPv6-адрес или имя хоста.</param>
+        /// <exception cref="SocketException">Имя хоста не разрешилось.</exception>
         public void StartClient(string host, int port)
         {
-            _socket = new UdpClient();
-            _server = new IPEndPoint(IPAddress.Parse(host), port);
+            var address = Resolve(host);
+            _socket = new UdpClient(address.AddressFamily);
+            _server = new IPEndPoint(address, port);
             Send(HelloPacket, HelloPacket.Length);
 
             _running = true;
@@ -58,7 +62,17 @@ namespace Game.Scripts.Net
         public void ProcessIncoming()
         {
             while (_incoming.TryDequeue(out var data))
-                Handle(data);
+            {
+                // Ошибка в одном обработчике не должна задерживать остальные пакеты кадра.
+                try
+                {
+                    Handle(data);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
+            }
         }
 
         public void Dispose()
@@ -74,6 +88,23 @@ namespace Game.Scripts.Net
             _running = false;
             _socket?.Close();
             _receiveThread?.Join(ReceiveThreadJoinTimeoutMs);
+        }
+
+        /// <summary>Ставит принятый пакет в очередь; вызывается потоком приёма.</summary>
+        internal void Enqueue(byte[] data) => _incoming.Enqueue(data);
+
+        private static IPAddress Resolve(string host)
+        {
+            if (IPAddress.TryParse(host, out var address)) return address;
+
+            var addresses = Dns.GetHostAddresses(host);
+            foreach (var candidate in addresses)
+            {
+                if (candidate.AddressFamily == AddressFamily.InterNetwork) return candidate;
+            }
+
+            if (addresses.Length > 0) return addresses[0];
+            throw new SocketException((int)SocketError.HostNotFound);
         }
 
         private void Handle(byte[] data)
@@ -96,14 +127,20 @@ namespace Game.Scripts.Net
             {
                 try
                 {
-                    _incoming.Enqueue(_socket.Receive(ref remote));
+                    Enqueue(_socket.Receive(ref remote));
                 }
                 catch (SocketException e) when (_running && e.SocketErrorCode == SocketError.ConnectionReset)
                 {
                     // Windows: ICMP «порт недоступен», пока сервер не запущен.
                 }
-                catch (Exception)
+                catch (Exception) when (!_running)
                 {
+                    // Сокет закрыт в Dispose.
+                    break;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
                     break;
                 }
             }

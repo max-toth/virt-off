@@ -10,24 +10,26 @@ namespace Game.Scripts.Player.Sync
     {
         private const byte CrouchingFlag = 1;
 
-        private static readonly PacketSubscription Subscription = new(OnPacket);
         private static INetTransport _transport;
+        private static PacketRouter _router;
 
         /// <summary>Позиция другого игрока (свои пакеты отбрасываются).</summary>
         public static event Action<PositionMessage> Received;
 
         public static bool IsConnected => _transport is { IsConnected: true };
 
-        public static void Initialize(INetTransport transport)
+        public static void Initialize(INetTransport transport, PacketRouter router)
         {
+            Unsubscribe();
             _transport = transport;
-            Subscription.Bind(transport);
+            _router = router;
+            router.Subscribe(PacketType.Position, OnPosition);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         public static void Shutdown()
         {
-            Subscription.Unbind();
+            Unsubscribe();
             _transport = null;
             Received = null;
         }
@@ -58,9 +60,14 @@ namespace Game.Scripts.Player.Sync
             return !reader.Failed;
         }
 
-        private static void OnPacket(string localId, byte[] data)
+        private static void Unsubscribe()
         {
-            if (data.Length == 0 || data[0] != PacketType.Position) return;
+            _router?.Unsubscribe(PacketType.Position, OnPosition);
+            _router = null;
+        }
+
+        private static void OnPosition(string localId, byte[] data)
+        {
             if (TryRead(data, out var message) && message.Sender != localId) Received?.Invoke(message);
         }
     }

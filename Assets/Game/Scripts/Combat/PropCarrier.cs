@@ -53,7 +53,7 @@ namespace Game.Scripts.Combat
         public bool UpdateHold()
         {
             if (!IsHolding) return false;
-            if (!_held.IsHeld)
+            if (!_held.IsHeldByUs)
             {
                 Release();
                 return false;
@@ -110,7 +110,7 @@ namespace Game.Scripts.Combat
             }
 
             prop = null;
-            return nearestIndex >= 0 && NetProp.TryFind(HitBuffer[nearestIndex].collider, out prop);
+            return nearestIndex >= 0 && NetProp.TryFind(HitBuffer[nearestIndex].collider, out prop) && !prop.IsHeld;
         }
     }
 }

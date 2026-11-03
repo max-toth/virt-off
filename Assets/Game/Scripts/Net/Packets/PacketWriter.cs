@@ -8,6 +8,9 @@ namespace Game.Scripts.Net.Packets
     /// <summary>Общий переиспользуемый буфер исходящего пакета. Только главный поток: INetTransport.Send отправляет синхронно.</summary>
     public sealed class PacketWriter
     {
+        /// <summary>Длина строки пишется одним байтом.</summary>
+        public const int MaxStringBytes = byte.MaxValue;
+
         private const int InitialCapacity = 512;
 
         private byte[] _buffer = new byte[InitialCapacity];
@@ -60,14 +63,24 @@ namespace Game.Scripts.Net.Packets
             WriteSingle(value.w);
         }
 
-        /// <summary>Пишет строку как [length:1][UTF-8]: не длиннее 255 байт.</summary>
+        /// <summary>Пишет строку как [length:1][UTF-8]. Длиннее MaxStringBytes байт — обрезается по границе символа.</summary>
         public void WriteString(string value)
         {
             value ??= string.Empty;
             var byteCount = Encoding.UTF8.GetByteCount(value);
             EnsureCapacity(1 + byteCount);
-            _buffer[_length++] = (byte)byteCount;
-            _length += Encoding.UTF8.GetBytes(value, 0, value.Length, _buffer, _length);
+
+            var start = _length + 1;
+            Encoding.UTF8.GetBytes(value, 0, value.Length, _buffer, start);
+            if (byteCount > MaxStringBytes)
+            {
+                byteCount = MaxStringBytes;
+                // Первый отброшенный байт — продолжение символа (10xxxxxx): символ целиком уходит за обрезку.
+                while (byteCount > 0 && (_buffer[start + byteCount] & 0xC0) == 0x80) byteCount--;
+            }
+
+            _buffer[_length] = (byte)byteCount;
+            _length = start + byteCount;
         }
 
         public void WriteBytes(byte[] source, int offset, int count)

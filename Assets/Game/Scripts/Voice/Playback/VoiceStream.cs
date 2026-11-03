@@ -8,16 +8,16 @@ namespace Game.Scripts.Voice.Playback
 {
     public sealed class VoiceStream : IDisposable
     {
-        private const int BufferLength = 48000;
-        private const int PlayoutDelay = 320;
+        private const int ClipLength = VoiceFormat.SampleRate * 3;
+        private const int TargetDelay = VoiceFormat.FrameSize;
+        private const int MaxDelay = VoiceFormat.SampleRate / 2;
+        private const int BufferCapacity = VoiceFormat.SampleRate * 2;
 
         private readonly OpusDecoder _decoder;
         private readonly short[] _pcm = new short[VoiceFormat.FrameSize];
-        private readonly float[] _buffer = new float[BufferLength];
+        private readonly VoiceJitterBuffer _buffer = new(BufferCapacity, TargetDelay, MaxDelay);
         private readonly AudioSource _source;
         private readonly AudioClip _clip;
-        private volatile int _writePosition = PlayoutDelay % BufferLength;
-        private volatile int _readPosition;
         private bool _disposed;
 
         public VoiceStream(string ownerId, Transform parent)
@@ -30,7 +30,7 @@ namespace Game.Scripts.Voice.Playback
             _source.loop = true;
             _source.volume = 1f;
 
-            _clip = AudioClip.Create("VoiceStream", BufferLength, VoiceFormat.Channels, VoiceFormat.SampleRate, true, OnAudioRead);
+            _clip = AudioClip.Create("VoiceStream", ClipLength, VoiceFormat.Channels, VoiceFormat.SampleRate, true, OnAudioRead);
             _source.clip = _clip;
             _source.Play();
         }
@@ -39,19 +39,14 @@ namespace Game.Scripts.Voice.Playback
         /// <returns>Пиковая амплитуда кадра, 0..1.</returns>
         public float Feed(byte[] data, int offset, int count)
         {
+            // Декодируется каждый кадр, даже отброшенный буфером: состояние декодера зависит от предыдущих кадров.
             var samples = _decoder.Decode(data, offset, count, _pcm, 0, _pcm.Length);
+            _buffer.Write(_pcm, samples);
 
-            var writePosition = _writePosition;
-            var peak = 0f;
+            var peak = 0;
             for (var i = 0; i < samples; i++)
-            {
-                var value = _pcm[i] / (float)short.MaxValue;
-                _buffer[(writePosition + i) % BufferLength] = value;
-                peak = Mathf.Max(peak, Mathf.Abs(value));
-            }
-
-            _writePosition = (writePosition + samples) % BufferLength;
-            return peak;
+                peak = Math.Max(peak, Math.Abs((int)_pcm[i]));
+            return Math.Min(peak / (float)short.MaxValue, 1f);
         }
 
         /// <summary>Возобновляет воспроизведение после смены устройства вывода в ОС.</summary>
@@ -69,25 +64,6 @@ namespace Game.Scripts.Voice.Playback
             Object.Destroy(_clip);
         }
 
-        private void OnAudioRead(float[] data)
-        {
-            var readPosition = _readPosition;
-            var writePosition = _writePosition;
-            var volume = GameSettings.VoiceVolume;
-
-            for (var i = 0; i < data.Length; i++)
-            {
-                if (readPosition == writePosition)
-                {
-                    data[i] = 0f;
-                    continue;
-                }
-
-                data[i] = _buffer[readPosition] * volume;
-                readPosition = (readPosition + 1) % BufferLength;
-            }
-
-            _readPosition = readPosition;
-        }
+        private void OnAudioRead(float[] data) => _buffer.Read(data, GameSettings.VoiceVolume);
     }
 }

@@ -18,7 +18,7 @@ namespace Game.Tests.EditMode
         public void SetUp()
         {
             _transport = FakeTransport.Connected();
-            CombatNetwork.Initialize(_transport);
+            CombatNetwork.Initialize(_transport, _transport.Router);
             _hits = new List<HitMessage>();
             CombatNetwork.HitReceived += _hits.Add;
         }
@@ -65,7 +65,7 @@ namespace Game.Tests.EditMode
         public void Send_BeforeIdAssigned_SendsNothing()
         {
             var transport = new FakeTransport();
-            CombatNetwork.Initialize(transport);
+            CombatNetwork.Initialize(transport, transport.Router);
 
             CombatNetwork.SendHit(AttackKind.Punch, "x", Vector3.zero, Vector3.zero);
             CombatNetwork.SendSound(Sfx.Miss, Vector3.zero, 1f);

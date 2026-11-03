@@ -8,8 +8,8 @@ namespace Game.Scripts.Voice
 {
     public static class VoiceNetwork
     {
-        private static readonly PacketSubscription Subscription = new(OnPacket);
         private static INetTransport _transport;
+        private static PacketRouter _router;
 
         /// <summary>Голос другого игрока (свои пакеты отбрасываются). Data ссылается на принятый пакет — не хранить после вызова.</summary>
         public static event Action<VoicePacket> Received;
@@ -19,19 +19,19 @@ namespace Game.Scripts.Voice
 
         public static bool IsConnected => _transport is { IsConnected: true };
 
-        public static void Initialize(INetTransport transport)
+        public static void Initialize(INetTransport transport, PacketRouter router)
         {
-            UnsubscribeIdAssigned();
+            Unsubscribe();
             _transport = transport;
-            if (transport != null) transport.IdAssigned += OnIdAssigned;
-            Subscription.Bind(transport);
+            _router = router;
+            transport.IdAssigned += OnIdAssigned;
+            router.Subscribe(PacketType.Voice, OnVoice);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         public static void Shutdown()
         {
-            UnsubscribeIdAssigned();
-            Subscription.Unbind();
+            Unsubscribe();
             _transport = null;
             Received = null;
             Connected = null;
@@ -58,16 +58,17 @@ namespace Game.Scripts.Voice
             return !reader.Failed;
         }
 
-        private static void UnsubscribeIdAssigned()
+        private static void Unsubscribe()
         {
             if (_transport != null) _transport.IdAssigned -= OnIdAssigned;
+            _router?.Unsubscribe(PacketType.Voice, OnVoice);
+            _router = null;
         }
 
         private static void OnIdAssigned() => Connected?.Invoke();
 
-        private static void OnPacket(string localId, byte[] data)
+        private static void OnVoice(string localId, byte[] data)
         {
-            if (data.Length == 0 || data[0] != PacketType.Voice) return;
             if (TryRead(data, out var packet) && packet.Sender != localId) Received?.Invoke(packet);
         }
     }

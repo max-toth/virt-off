@@ -10,24 +10,27 @@ namespace Game.Scripts.Combat
 {
     public static class CombatNetwork
     {
-        private static readonly PacketSubscription Subscription = new(OnPacket);
         private static INetTransport _transport;
+        private static PacketRouter _router;
 
         /// <summary>Удар другого игрока (свои удары не приходят).</summary>
         public static event Action<HitMessage> HitReceived;
 
         public static string LocalId => _transport?.LocalId;
 
-        public static void Initialize(INetTransport transport)
+        public static void Initialize(INetTransport transport, PacketRouter router)
         {
+            Unsubscribe();
             _transport = transport;
-            Subscription.Bind(transport);
+            _router = router;
+            router.Subscribe(PacketType.Attack, OnAttack);
+            router.Subscribe(PacketType.Sound, OnSound);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         public static void Shutdown()
         {
-            Subscription.Unbind();
+            Unsubscribe();
             _transport = null;
             HitReceived = null;
         }
@@ -88,19 +91,23 @@ namespace Game.Scripts.Combat
             return !reader.Failed;
         }
 
-        private static void OnPacket(string localId, byte[] data)
+        private static void Unsubscribe()
         {
-            if (data.Length == 0) return;
+            if (_router == null) return;
+            _router.Unsubscribe(PacketType.Attack, OnAttack);
+            _router.Unsubscribe(PacketType.Sound, OnSound);
+            _router = null;
+        }
 
-            switch (data[0])
-            {
-                case PacketType.Sound when TryReadSound(data, out var sound) && sound.Sender != localId:
-                    GameSounds.Play(sound.Sfx, sound.Position, sound.Volume);
-                    break;
-                case PacketType.Attack when TryReadHit(data, out var hit) && hit.Attacker != localId:
-                    HitReceived?.Invoke(hit);
-                    break;
-            }
+        private static void OnAttack(string localId, byte[] data)
+        {
+            if (TryReadHit(data, out var hit) && hit.Attacker != localId) HitReceived?.Invoke(hit);
+        }
+
+        private static void OnSound(string localId, byte[] data)
+        {
+            if (TryReadSound(data, out var sound) && sound.Sender != localId)
+                GameSounds.Play(sound.Sfx, sound.Position, sound.Volume);
         }
     }
 }

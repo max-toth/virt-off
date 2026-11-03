@@ -18,7 +18,7 @@ namespace Game.Tests.EditMode
         {
             Lobby.Shutdown();
             _transport = FakeTransport.Connected();
-            Lobby.Initialize(_transport);
+            Lobby.Initialize(_transport.Router);
             _joined = new List<string>();
             Lobby.PlayerJoined += _joined.Add;
         }

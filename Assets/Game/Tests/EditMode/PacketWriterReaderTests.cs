@@ -114,6 +114,49 @@ namespace Game.Tests.EditMode
         }
 
         [Test]
+        public void String_OfMaxLength_IsKeptWhole()
+        {
+            var value = new string('a', PacketWriter.MaxStringBytes);
+            _writer.WriteString(value);
+
+            Assert.That(new PacketReader(Send()).ReadString(), Is.EqualTo(value));
+        }
+
+        [Test]
+        public void String_TooLong_IsTruncatedAndPacketStaysReadable()
+        {
+            _writer.WriteString(new string('a', 300));
+            _writer.WriteByte(77);
+
+            var reader = new PacketReader(Send());
+            Assert.That(reader.ReadString(), Is.EqualTo(new string('a', PacketWriter.MaxStringBytes)));
+            Assert.That(reader.ReadByte(), Is.EqualTo(77));
+            Assert.That(reader.Failed, Is.False);
+        }
+
+        [Test]
+        public void String_TooLong_IsTruncatedAtCharBoundary()
+        {
+            // 'ж' — 2 байта: 128 символов = 256 байт, целиком влезают только 127.
+            _writer.WriteString(new string('ж', 128));
+
+            var data = Send();
+            Assert.That(data[1], Is.EqualTo(254));
+            Assert.That(new PacketReader(data).ReadString(), Is.EqualTo(new string('ж', 127)));
+        }
+
+        [Test]
+        public void String_TooLong_DoesNotSplitSurrogatePair()
+        {
+            // 'a' + 63 эмодзи по 4 байта = 253 байта, 64-е эмодзи уже не влезает.
+            var value = "a" + string.Concat(System.Linq.Enumerable.Repeat("🎮", 64));
+            _writer.WriteString(value);
+
+            var read = new PacketReader(Send()).ReadString();
+            Assert.That(read, Is.EqualTo("a" + string.Concat(System.Linq.Enumerable.Repeat("🎮", 63))));
+        }
+
+        [Test]
         public void String_NullIsWrittenAsEmpty()
         {
             _writer.WriteString(null);
