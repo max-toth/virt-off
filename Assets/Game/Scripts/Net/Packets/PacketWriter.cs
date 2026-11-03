@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Net.Packets
 {
-    /// <summary>Общий переиспользуемый буфер исходящего пакета. Только главный поток: NetManager.Send отправляет синхронно.</summary>
+    /// <summary>Общий переиспользуемый буфер исходящего пакета. Только главный поток: INetTransport.Send отправляет синхронно.</summary>
     public sealed class PacketWriter
     {
         private const int InitialCapacity = 512;
@@ -77,7 +77,7 @@ namespace Game.Scripts.Net.Packets
             _length += count;
         }
 
-        public void SendTo(NetManager manager) => manager.Send(_buffer, _length);
+        public void SendTo(INetTransport transport) => transport.Send(_buffer, _length);
 
         private void EnsureCapacity(int count)
         {

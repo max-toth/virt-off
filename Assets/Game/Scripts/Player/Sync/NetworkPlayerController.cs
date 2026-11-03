@@ -7,7 +7,7 @@ namespace Game.Scripts.Player.Sync
     public class NetworkPlayerController : MonoBehaviour
     {
         private PlayerController _player;
-        private NetManager _manager;
+        private INetTransport _manager;
 
         private void Awake() => _player = GetComponent<PlayerController>();
 
@@ -19,7 +19,7 @@ namespace Game.Scripts.Player.Sync
                 return;
             }
 
-            _manager = GameNet.Instance;
+            _manager = GameNet.Transport;
             if (_manager != null) _manager.IdAssigned += OnIdAssigned;
         }
 

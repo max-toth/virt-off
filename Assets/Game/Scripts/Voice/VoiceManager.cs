@@ -1,4 +1,3 @@
-using Game.Scripts.Net;
 using Game.Scripts.Settings;
 using Game.Scripts.UI.Menu;
 using Game.Scripts.Voice.Capture;
@@ -16,7 +15,7 @@ namespace Game.Scripts.Voice
         private MicrophoneCapture _capture;
         private VoiceEncoder _encoder;
         private MicTest _micTest;
-        private NetManager _pendingManager;
+        private bool _waitingForConnection;
 
         private static VoiceManager _instance;
         private static bool _hasInstance;
@@ -63,14 +62,14 @@ namespace Game.Scripts.Voice
         {
             GameSettings.MicDeviceChanged += RestartMic;
 
-            if (GameNet.TryGetConnected(out _))
+            if (VoiceNetwork.IsConnected)
             {
                 StartMic();
                 return;
             }
 
-            _pendingManager = GameNet.Instance;
-            if (_pendingManager != null) _pendingManager.IdAssigned += OnIdAssigned;
+            _waitingForConnection = true;
+            VoiceNetwork.Connected += OnConnected;
         }
 
         private void OnDisable()
@@ -82,7 +81,7 @@ namespace Game.Scripts.Voice
         private void OnDestroy()
         {
             GameSettings.MicDeviceChanged -= RestartMic;
-            UnsubscribePending();
+            StopWaitingForConnection();
             _micTest.Dispose();
             if (_instance != this) return;
             _instance = null;
@@ -108,7 +107,7 @@ namespace Game.Scripts.Voice
         // Отправляет все накопленные кадры: при низком FPS отставание не копится.
         private void Transmit()
         {
-            if (GameSettings.MicMuted || !GameNet.TryGetConnected(out _))
+            if (GameSettings.MicMuted || !VoiceNetwork.IsConnected)
             {
                 _capture.SkipToNow();
                 return;
@@ -139,16 +138,17 @@ namespace Game.Scripts.Voice
             if (keyboard.jKey.wasPressedThisFrame) GameSettings.VoiceVolume -= VoiceVolumeStep;
         }
 
-        private void OnIdAssigned()
+        private void OnConnected()
         {
-            UnsubscribePending();
+            StopWaitingForConnection();
             StartMic();
         }
 
-        private void UnsubscribePending()
+        private void StopWaitingForConnection()
         {
-            if (_pendingManager != null) _pendingManager.IdAssigned -= OnIdAssigned;
-            _pendingManager = null;
+            if (!_waitingForConnection) return;
+            _waitingForConnection = false;
+            VoiceNetwork.Connected -= OnConnected;
         }
 
         private void StartMic()
@@ -161,7 +161,7 @@ namespace Game.Scripts.Voice
         // До подключения микрофон не запущен: выбранное устройство подхватится в StartMic.
         private void RestartMic()
         {
-            if (!GameNet.TryGetConnected(out _)) return;
+            if (!VoiceNetwork.IsConnected) return;
 
             _micTest.Cancel();
             _capture.Stop();

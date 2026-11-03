@@ -1,20 +1,20 @@
 namespace Game.Scripts.Net
 {
-    /// <summary>Доступ к активному подключению. Выставляется NetClient до загрузки первой сцены.</summary>
+    /// <summary>Временный мост к подключению для презентеров UI; остальной код получает INetTransport от NetClient.</summary>
     public static class GameNet
     {
-        public static NetManager Instance { get; private set; }
+        public static INetTransport Transport { get; private set; }
 
-        public static string LocalId => Instance?.LocalId;
+        public static string LocalId => Transport?.LocalId;
 
         /// <summary>Текущее подключение, если сервер уже выдал id.</summary>
         /// <returns>true — можно отправлять пакеты.</returns>
-        public static bool TryGetConnected(out NetManager manager)
+        public static bool TryGetConnected(out INetTransport transport)
         {
-            manager = Instance;
-            return manager is { IsConnected: true };
+            transport = Transport;
+            return transport is { IsConnected: true };
         }
 
-        internal static void Set(NetManager manager) => Instance = manager;
+        internal static void Set(INetTransport transport) => Transport = transport;
     }
 }

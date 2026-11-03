@@ -1,6 +1,6 @@
 using System;
 using Game.Scripts.Net;
-using Game.Scripts.Net.Packets;
+using Game.Scripts.Player.Sync.Models;
 using UnityEngine;
 
 namespace Game.Scripts.Player.Sync
@@ -18,25 +18,23 @@ namespace Game.Scripts.Player.Sync
 
         private PlayerController _player;
         private RemoteAvatarFactory _avatarFactory;
-        private PacketSubscription _subscription;
         private float _sendTimer;
 
         private void Awake()
         {
             _player = GetComponent<PlayerController>();
-            _subscription = new PacketSubscription(OnPacket);
         }
 
         private void Start()
         {
             _avatarFactory = new RemoteAvatarFactory(transform, avatarPrefabs, avatarScale);
-            _subscription.Bind(GameNet.Instance);
+            PositionNetwork.Received += OnPositionReceived;
             Lobby.PlayerLeft += OnPlayerLeft;
         }
 
         private void OnDestroy()
         {
-            _subscription?.Unbind();
+            PositionNetwork.Received -= OnPositionReceived;
             Lobby.PlayerLeft -= OnPlayerLeft;
             _avatarFactory?.Dispose();
             RemotePlayers.Clear();
@@ -50,7 +48,7 @@ namespace Game.Scripts.Player.Sync
 
         private void SendLocalPosition()
         {
-            if (!GameNet.TryGetConnected(out _)) return;
+            if (!PositionNetwork.IsConnected) return;
 
             _sendTimer += Time.deltaTime;
             if (_sendTimer < sendInterval) return;
@@ -59,11 +57,8 @@ namespace Game.Scripts.Player.Sync
             PositionNetwork.Send(transform.position, transform.eulerAngles.y, _player.IsCrouching);
         }
 
-        private void OnPacket(string localId, byte[] data)
+        private void OnPositionReceived(PositionMessage message)
         {
-            if (data.Length == 0 || data[0] != PacketType.Position) return;
-            if (!PositionNetwork.TryRead(data, out var message) || message.Sender == localId) return;
-
             if (!RemotePlayers.TryGet(message.Sender, out var remote))
             {
                 remote = _avatarFactory.Create(message.Sender, message.Position, message.Yaw);

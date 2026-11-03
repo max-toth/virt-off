@@ -1,5 +1,4 @@
 ﻿using Game.Scripts.Combat.Models;
-using Game.Scripts.Net;
 using Game.Scripts.Player;
 using Game.Scripts.Player.Animation;
 using Game.Scripts.UI.Menu;
@@ -109,7 +108,7 @@ namespace Game.Scripts.Combat
 
         private void OnHitReceived(HitMessage hit)
         {
-            if (!hit.HasTarget || hit.Target != GameNet.Instance?.LocalId) return;
+            if (!hit.HasTarget || hit.Target != CombatNetwork.LocalId) return;
 
             _player.AddImpulse(hit.Impulse);
             _player.Shake(melee.For(hit.Kind).VictimShake);

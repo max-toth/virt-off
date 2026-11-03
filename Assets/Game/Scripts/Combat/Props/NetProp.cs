@@ -82,7 +82,7 @@ namespace Game.Scripts.Combat.Props
             Body.isKinematic = true;
             _holderCollision.Ignore(holder);
 
-            NetPropSender.SendPickupRequest(this);
+            NetPropSender.SendPickupRequest(NetworkId);
             NetPropDiagnostics.Log($"PICKUP_REQ prop={Id} serverId={NetworkId}");
         }
 
@@ -98,7 +98,7 @@ namespace Game.Scripts.Combat.Props
             Body.angularVelocity = angularVelocity;
             _holderCollision.ScheduleRestore(holder);
 
-            NetPropSender.SendRelease(this, velocity, angularVelocity);
+            NetPropSender.SendRelease(NetworkId, velocity, angularVelocity);
             NetPropDiagnostics.Log($"PROP_RELEASE prop={Id} serverId={NetworkId}");
         }
 
@@ -197,7 +197,7 @@ namespace Game.Scripts.Combat.Props
             ResetToStart();
             if (!IsServerOwned) return;
 
-            NetPropSender.SendState(this, PropStateFlags.Settled);
+            SendState(PropStateFlags.Settled);
             IsServerOwned = false;
             IsHeld = false;
         }
@@ -206,7 +206,7 @@ namespace Game.Scripts.Combat.Props
         {
             if (!IsHeld && _settle.IsSettled(Body))
             {
-                NetPropSender.SendState(this, PropStateFlags.Settled);
+                SendState(PropStateFlags.Settled);
                 IsServerOwned = false;
                 Body.isKinematic = true;
                 return;
@@ -216,7 +216,14 @@ namespace Game.Scripts.Combat.Props
             if (_sendTimer < SendInterval) return;
 
             _sendTimer = 0f;
-            NetPropSender.SendState(this, IsHeld ? PropStateFlags.Held : PropStateFlags.None);
+            SendState(IsHeld ? PropStateFlags.Held : PropStateFlags.None);
+        }
+
+        private void SendState(PropStateFlags flags)
+        {
+            transform.GetPositionAndRotation(out var position, out var rotation);
+            var velocity = Body.isKinematic ? Vector3.zero : Body.linearVelocity;
+            NetPropSender.SendState(NetworkId, position, rotation, velocity, flags);
         }
 
         private void ResetToStart()

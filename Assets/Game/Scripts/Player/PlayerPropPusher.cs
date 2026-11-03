@@ -1,5 +1,4 @@
 using Game.Scripts.Combat.Props;
-using Game.Scripts.Net;
 using UnityEngine;
 
 namespace Game.Scripts.Player
@@ -24,7 +23,7 @@ namespace Game.Scripts.Player
             if (NetProp.TryFind(hit.collider, out var prop))
             {
                 if (prop.IsHeld) return;
-                prop.TakeOwnership(GameNet.LocalId);
+                prop.TakeOwnership(NetPropSender.LocalId);
             }
 
             if (body.isKinematic) return;

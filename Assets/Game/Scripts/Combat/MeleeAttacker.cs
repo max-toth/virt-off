@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Game.Scripts.Combat.Models;
 using Game.Scripts.Combat.Props;
-using Game.Scripts.Net;
 using Game.Scripts.Player.Sync;
 using UnityEngine;
 
@@ -77,7 +76,7 @@ namespace Game.Scripts.Combat
 
         private void PushProp(NetProp prop, AttackSettings settings, Vector3 direction, Vector3 point)
         {
-            prop.TakeOwnership(GameNet.Instance?.LocalId);
+            prop.TakeOwnership(NetPropSender.LocalId);
             var strength = _settings.PropHitImpulse * settings.PropImpulseFactor * Mathf.Max(1f, prop.Body.mass * 0.5f);
             prop.Body.AddForceAtPosition(direction * strength, point, ForceMode.Impulse);
         }

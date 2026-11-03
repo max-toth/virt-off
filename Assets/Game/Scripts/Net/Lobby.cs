@@ -51,8 +51,11 @@ namespace Game.Scripts.Net
             }
         }
 
+        public static void Initialize(INetTransport transport) => Subscription.Bind(transport);
+
+        /// <summary>Отписывает от транспорта, забывает игроков и подписчиков событий.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetState()
+        public static void Shutdown()
         {
             Subscription.Unbind();
             _nextExpiryCheck = 0f;
@@ -60,9 +63,6 @@ namespace Game.Scripts.Net
             PlayerJoined = null;
             PlayerLeft = null;
         }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void Subscribe() => Subscription.Bind(GameNet.Instance);
 
         private static void OnPacket(string localId, byte[] data)
         {

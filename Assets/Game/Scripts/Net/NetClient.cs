@@ -1,10 +1,15 @@
 using System;
+using Game.Scripts.Combat;
+using Game.Scripts.Combat.Props;
 using Game.Scripts.Net.Config;
+using Game.Scripts.Player.Sync;
+using Game.Scripts.Voice;
 using UnityEngine;
 
 namespace Game.Scripts.Net
 {
-    /// <summary>Подключение к серверу до загрузки первой сцены. Адрес — из Resources/ServerConfig, аргумент -server &lt;ip&gt; его перекрывает.</summary>
+    /// <summary>Точка сборки сетевого слоя: создаёт подключение до загрузки первой сцены и раздаёт его модулям.
+    /// Адрес — из Resources/ServerConfig, аргумент -server &lt;ip&gt; его перекрывает.</summary>
     public sealed class NetClient : MonoBehaviour
     {
         private const string ServerArgument = "-server";
@@ -26,8 +31,8 @@ namespace Game.Scripts.Net
 
             _manager = new NetManager();
             _manager.IdAssigned += OnIdAssigned;
+            Attach(_manager);
             _manager.StartClient(host, port);
-            GameNet.Set(_manager);
             NetworkPlayerLoop.Install(Pump);
         }
 
@@ -35,11 +40,34 @@ namespace Game.Scripts.Net
         {
             NetworkPlayerLoop.Uninstall();
             _manager.IdAssigned -= OnIdAssigned;
+            Detach();
             _manager.Dispose();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetState() => NetworkPlayerLoop.Uninstall();
+
+        private static void Attach(INetTransport transport)
+        {
+            GameNet.Set(transport);
+            Lobby.Initialize(transport);
+            CombatNetwork.Initialize(transport);
+            NetPropSender.Initialize(transport);
+            NetPropReceiver.Initialize(transport);
+            PositionNetwork.Initialize(transport);
+            VoiceNetwork.Initialize(transport);
+        }
+
+        private static void Detach()
+        {
+            VoiceNetwork.Shutdown();
+            PositionNetwork.Shutdown();
+            NetPropReceiver.Shutdown();
+            NetPropSender.Shutdown();
+            CombatNetwork.Shutdown();
+            Lobby.Shutdown();
+            GameNet.Set(null);
+        }
 
         private void Pump()
         {

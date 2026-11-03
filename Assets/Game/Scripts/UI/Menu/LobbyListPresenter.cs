@@ -54,7 +54,7 @@ namespace Game.Scripts.UI.Menu
 
         private void OnLobbyChanged(string id) => _dirty = true;
 
-        private void Rebuild(bool connected, NetManager manager)
+        private void Rebuild(bool connected, INetTransport manager)
         {
             _dirty = false;
             _connected = connected;
