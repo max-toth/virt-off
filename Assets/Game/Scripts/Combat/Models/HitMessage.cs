@@ -19,6 +19,8 @@ namespace Game.Scripts.Combat.Models
         public string Target { get; }
         public Vector3 Point { get; }
         public Vector3 Impulse { get; }
+
+        /// <summary>Удар пришёлся в предмет или стену, а не в игрока.</summary>
         public bool HitObject { get; }
         public bool HasTarget => !string.IsNullOrEmpty(Target);
     }

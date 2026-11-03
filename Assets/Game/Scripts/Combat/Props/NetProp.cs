@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
 {
+    /// <summary>Физический предмет, синхронизируемый по сети: владелец (кто держит или двигает) рассылает состояние, остальные следуют за ним.</summary>
     [RequireComponent(typeof(Rigidbody))]
     public class NetProp : MonoBehaviour
     {
@@ -21,12 +22,15 @@ namespace Game.Scripts.Combat.Props
 
         public int Id { get; internal set; }
 
-        // Id, выданный сервером в MANIFEST_ACK; -1 до его получения.
+        /// <summary>Id, выданный сервером в MANIFEST_ACK; -1 до его получения.</summary>
         public int ServerId { get; internal set; } = -1;
 
+        /// <summary>Id для пакетов: ServerId, если сервер его уже выдал, иначе локальный Id.</summary>
         public int NetworkId => ServerId >= 0 ? ServerId : Id;
         public Rigidbody Body { get; private set; }
         public bool IsHeld { get; private set; }
+
+        /// <summary>Id игрока, который последним бросил или толкнул предмет: кому засчитать попадание.</summary>
         public string LastThrower { get; internal set; }
         internal bool IsServerOwned { get; private set; }
 
@@ -54,7 +58,7 @@ namespace Game.Scripts.Combat.Props
             else if (_follower.IsActive) _follower.Update(transform);
         }
 
-        // Локальное владение физикой (удар, толчок) без запроса к серверу.
+        /// <summary>Локальное владение физикой (удар, толчок) без запроса к серверу.</summary>
         public void TakeOwnership(string thrower)
         {
             LastThrower = thrower;
@@ -66,7 +70,7 @@ namespace Game.Scripts.Combat.Props
             Body.WakeUp();
         }
 
-        // Оптимистично берём предмет в руки, не дожидаясь PROP_GRANT.
+        /// <summary>Берёт предмет в руки сразу, не дожидаясь PROP_GRANT; при отказе или тайм-ауте предмет вернётся на место.</summary>
         public void RequestPickup(Collider holder)
         {
             if (!NetPropSender.IsConnected) return;
@@ -158,7 +162,8 @@ namespace Game.Scripts.Combat.Props
             ResetToStart();
         }
 
-        // false — предмет у нас в руках, чужое состояние не применяется.
+        /// <summary>Применяет состояние предмета от другого клиента.</summary>
+        /// <returns>false — предмет у нас в руках, чужое состояние не применяется.</returns>
         internal bool ApplyRemoteState(string sender, Vector3 position, Quaternion rotation, PropStateFlags flags)
         {
             if (IsHeld) return false;

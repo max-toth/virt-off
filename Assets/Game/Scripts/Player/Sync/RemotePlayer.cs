@@ -29,7 +29,7 @@ namespace Game.Scripts.Player.Sync
             if (HasWalk) Walk.SetCrouching(crouching);
         }
 
-        // Пакеты приходят 20 раз в секунду: без сглаживания чужие игроки дёргаются. Далеко (респаун) — телепорт.
+        /// <summary>Сглаживает движение между пакетами (они приходят 20 раз в секунду); при большом расстоянии (респаун) — телепорт.</summary>
         public void Smooth(float t)
         {
             Root.GetPositionAndRotation(out var position, out var rotation);

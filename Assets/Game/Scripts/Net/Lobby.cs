@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Net
 {
+    /// <summary>Игроки в комнате. Сервер не присылает список: игрок считается присутствующим, пока от него приходят пакеты голоса или позиции.</summary>
     public static class Lobby
     {
         private const float TimeoutSeconds = 5f;
@@ -16,7 +17,10 @@ namespace Game.Scripts.Net
         private static readonly PacketSubscription Subscription = new(OnPacket);
         private static float _nextExpiryCheck;
 
+        /// <summary>Новый игрок; аргумент — его id.</summary>
         public static event Action<string> PlayerJoined;
+
+        /// <summary>От игрока долго нет пакетов; аргумент — его id.</summary>
         public static event Action<string> PlayerLeft;
 
         public static IReadOnlyCollection<LobbyPlayer> Players => PlayersById.Values;

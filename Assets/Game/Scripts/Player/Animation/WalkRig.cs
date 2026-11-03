@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Animation
 {
-    // Кости скелета Rigify metarig (модели Floreswa) и их исходная поза.
+    /// <summary>Кости скелета Rigify metarig (модели Floreswa) и их исходная поза.</summary>
     public sealed class WalkRig
     {
         private static readonly string[] BoneNames =
@@ -34,7 +34,7 @@ namespace Game.Scripts.Player.Animation
 
         public Transform Root { get; }
 
-        // В локальных единицах корня модели.
+        /// <summary>Длина ноги в локальных единицах корня модели.</summary>
         public float LegLength { get; }
 
         public Transform Hips => _bones[0];

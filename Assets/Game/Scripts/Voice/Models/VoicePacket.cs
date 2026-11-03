@@ -1,6 +1,6 @@
 namespace Game.Scripts.Voice.Models
 {
-    // Данные Opus без копирования: ссылка на принятый пакет и диапазон внутри него.
+    /// <summary>Данные Opus без копирования: ссылка на принятый пакет и диапазон внутри него.</summary>
     public readonly struct VoicePacket
     {
         public VoicePacket(string sender, byte[] data, int offset, int count)

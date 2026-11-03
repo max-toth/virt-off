@@ -9,6 +9,7 @@ namespace Game.Scripts.Net.Packets
 
         public PacketSubscription(Action<string, byte[]> handler) => _handler = handler;
 
+        /// <summary>Подписывает на manager; от предыдущего отписывает, повторная подписка на тот же не дублируется.</summary>
         public void Bind(NetManager manager)
         {
             if (manager == _manager) return;

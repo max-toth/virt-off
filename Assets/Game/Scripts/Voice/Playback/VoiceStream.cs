@@ -35,7 +35,8 @@ namespace Game.Scripts.Voice.Playback
             _source.Play();
         }
 
-        // Возвращает пиковую амплитуду кадра (0..1).
+        /// <summary>Декодирует кадр Opus в буфер воспроизведения.</summary>
+        /// <returns>Пиковая амплитуда кадра, 0..1.</returns>
         public float Feed(byte[] data, int offset, int count)
         {
             var samples = _decoder.Decode(data, offset, count, _pcm, 0, _pcm.Length);
@@ -53,7 +54,7 @@ namespace Game.Scripts.Voice.Playback
             return peak;
         }
 
-        // После смены устройства вывода в ОС аудио перезапускается.
+        /// <summary>Возобновляет воспроизведение после смены устройства вывода в ОС.</summary>
         public void Restart()
         {
             if (!_disposed && !_source.isPlaying) _source.Play();

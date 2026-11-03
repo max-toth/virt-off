@@ -8,6 +8,7 @@ using Game.Scripts.Net.Packets;
 
 namespace Game.Scripts.Net
 {
+    /// <summary>UDP-клиент: приём в фоновом потоке, события — в главном потоке из ProcessIncoming.</summary>
     public sealed class NetManager : IDisposable
     {
         private const int ReceiveThreadJoinTimeoutMs = 500;
@@ -20,7 +21,10 @@ namespace Game.Scripts.Net
         private Thread _receiveThread;
         private volatile bool _running;
 
+        /// <summary>Входящий пакет: id своего клиента и данные; data[0] — PacketType.</summary>
         public event Action<string, byte[]> PacketReceived;
+
+        /// <summary>Сервер выдал id; с этого момента IsConnected = true.</summary>
         public event Action IdAssigned;
 
         public string LocalId { get; private set; }
@@ -53,6 +57,7 @@ namespace Game.Scripts.Net
             }
         }
 
+        /// <summary>Разбирает накопленные пакеты и вызывает события. Только из главного потока.</summary>
         public void ProcessIncoming()
         {
             while (_incoming.TryDequeue(out var data))

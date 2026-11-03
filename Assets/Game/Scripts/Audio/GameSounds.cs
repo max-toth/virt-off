@@ -21,6 +21,7 @@ namespace Game.Scripts.Audio
         private static AudioSource[] _pool;
         private static int _nextSource;
 
+        /// <summary>3D-звук в точке; к pitch добавляется случайный разброс ±8%. На сервере без графики ничего не делает.</summary>
         public static void Play(Sfx sfx, Vector3 position, float volume = 1f, float pitch = 1f)
         {
             var index = (int)sfx;

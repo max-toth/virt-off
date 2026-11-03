@@ -13,10 +13,10 @@ namespace Game.Scripts.Player.Animation.Models
             DeltaTime = deltaTime;
         }
 
-        // 0 — стоит, 1 — идёт.
+        /// <summary>0 — стоит, 1 — идёт.</summary>
         public float Move { get; }
 
-        // 0 — шаг, 1 — бег.
+        /// <summary>0 — шаг, 1 — бег.</summary>
         public float Run { get; }
 
         public float PhaseSin { get; }

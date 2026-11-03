@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Sync
 {
-    // Метка на модели чужого игрока: по ней удары и брошенные предметы понимают, в кого попали.
+    /// <summary>Метка на модели чужого игрока: по ней удары и брошенные предметы понимают, в кого попали.</summary>
     public class RemoteAvatar : MonoBehaviour
     {
         private const float Height = 1.8f;
@@ -19,7 +19,7 @@ namespace Game.Scripts.Player.Sync
 
         public static bool TryFind(Collider collider, out RemoteAvatar avatar) => ByCollider.TryGetValue(collider, out avatar);
 
-        // Капсула и кинематический Rigidbody: в игрока можно попасть, предметы от него отскакивают.
+        /// <summary>Добавляет капсулу и кинематический Rigidbody: в игрока можно попасть, предметы от него отскакивают.</summary>
         public static void Attach(GameObject target, string id)
         {
             var avatar = target.AddComponent<RemoteAvatar>();

@@ -7,6 +7,7 @@ using UnityEngine.InputSystem;
 
 namespace Game.Scripts.Voice
 {
+    /// <summary>Свой голос: микрофон → Opus → сервер. Клавиши: M — микрофон, R (удерживать) — проверка, U/J — громкость голосов.</summary>
     public class VoiceManager : MonoBehaviour
     {
         private const float VoiceVolumeStep = 0.1f;
@@ -20,7 +21,10 @@ namespace Game.Scripts.Voice
         private static VoiceManager _instance;
         private static bool _hasInstance;
 
+        /// <summary>Уровень микрофона с учётом усиления, 0..1.</summary>
         public float MicLevel => _capture.Level;
+
+        /// <summary>Микрофон запущен (после подключения к серверу и при наличии устройства).</summary>
         public bool IsReady => _capture.IsStarted;
         public bool IsTesting => _micTest.IsRecording;
         public bool IsPlayingTest => _micTest.IsPlaying;
@@ -37,6 +41,7 @@ namespace Game.Scripts.Voice
             if (IsTesting) _micTest.Finish(GameSettings.MicGain);
         }
 
+        /// <summary>Компонент на своём игроке, если он есть в сцене.</summary>
         public static bool TryGetInstance(out VoiceManager instance)
         {
             instance = _instance;

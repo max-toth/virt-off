@@ -16,7 +16,7 @@ namespace Game.Scripts.Voice.Capture
         public string Device { get; private set; }
         public bool IsStarted { get; private set; }
 
-        // Пиковый уровень с учётом усиления (0..1): быстрый подъём, плавный спад.
+        /// <summary>Пиковый уровень с учётом усиления, 0..1: быстрый подъём, плавный спад.</summary>
         public float Level { get; private set; }
 
         public bool IsRecording => IsStarted && Microphone.IsRecording(Device);

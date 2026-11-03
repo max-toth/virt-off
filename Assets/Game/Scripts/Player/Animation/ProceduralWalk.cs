@@ -4,8 +4,10 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Animation
 {
-    // Процедурная анимация для моделей без клипов: скорость считается по смещению transform,
-    // поэтому одинаково работает для своего и для чужих игроков.
+    /// <summary>
+    /// Процедурная анимация для моделей без клипов: скорость считается по смещению transform,
+    /// поэтому одинаково работает для своего и для чужих игроков.
+    /// </summary>
     public class ProceduralWalk : MonoBehaviour
     {
         private const float TeleportSpeed = 20f;
@@ -33,12 +35,15 @@ namespace Game.Scripts.Player.Animation
 
         public static event Action<ProceduralWalk> Created;
 
+        /// <summary>Замах правой рукой: кулак или, если slap, лещ.</summary>
         public void PlayAttack(bool slap) => _attack.Play(slap);
 
         public void PlayHit() => _hitReaction.Play();
 
+        /// <summary>Держать руки перед собой ещё duration секунд; вызывать каждый кадр, пока предмет в руках.</summary>
         public void HoldItem(float duration) => _carry.Hold(duration);
 
+        /// <summary>Присед для чужих игроков; для своего значение берётся из PlayerController.</summary>
         public void SetCrouching(bool crouching) => _crouching = crouching;
 
         private void Awake()

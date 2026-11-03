@@ -4,6 +4,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Net
 {
+    /// <summary>Подключение к серверу до загрузки первой сцены. Адрес — из Resources/ServerConfig, аргумент -server &lt;ip&gt; его перекрывает.</summary>
     public sealed class NetClient : MonoBehaviour
     {
         private const string ServerArgument = "-server";

@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Net.Packets
 {
+    /// <summary>Чтение пакета с проверкой границ; по умолчанию начинает после байта типа.</summary>
     public struct PacketReader
     {
         private readonly byte[] _data;
@@ -16,6 +17,7 @@ namespace Game.Scripts.Net.Packets
             Failed = false;
         }
 
+        /// <summary>true, если данных не хватило; дальнейшие чтения возвращают значения по умолчанию.</summary>
         public bool Failed { get; private set; }
 
         public int Position { get; private set; }

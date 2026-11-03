@@ -7,7 +7,7 @@ using Object = UnityEngine.Object;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Порядок детерминирован (по позиции), чтобы id совпадали у всех клиентов.
+    /// <summary>Предметы сцены и их локальные id. Порядок детерминирован (по позиции), чтобы id совпадали у всех клиентов.</summary>
     public static class NetPropRegistry
     {
         private static readonly string[] Keywords = { "chair", "trashbin", "trash", "eraser", "notepad", "pencilholder" };

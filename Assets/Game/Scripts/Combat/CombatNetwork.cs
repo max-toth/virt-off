@@ -12,6 +12,7 @@ namespace Game.Scripts.Combat
     {
         private static readonly PacketSubscription Subscription = new(OnPacket);
 
+        /// <summary>Удар другого игрока (свои удары не приходят).</summary>
         public static event Action<HitMessage> HitReceived;
 
         // ATTACK: [type][attacker:str][kind:1][target:str][point:12][impulse:12][hitObject:1]

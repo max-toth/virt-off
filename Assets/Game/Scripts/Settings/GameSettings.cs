@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Settings
 {
+    /// <summary>Настройки клиента. Save сохраняет их в PlayerPrefs, Apply применяет громкость и графику к движку; остальное компоненты читают сами.</summary>
     public static class GameSettings
     {
         public const float DefaultMicGain = 1f;
@@ -19,7 +20,7 @@ namespace Game.Scripts.Settings
 
         public static event Action MicDeviceChanged;
 
-        // Пустая строка — первый доступный микрофон.
+        /// <summary>Выбранный микрофон; пустая строка — первый доступный.</summary>
         public static string MicDevice
         {
             get => _micDevice;
@@ -50,13 +51,14 @@ namespace Game.Scripts.Settings
 
         public static void Save() => GameSettingsStorage.Save();
 
-        // Значение из сцены используется, пока игрок не сохранил свою чувствительность.
+        /// <summary>Значение из сцены используется, пока игрок не сохранил свою чувствительность.</summary>
         public static void ApplyDefaultMouseSensitivity(float value)
         {
             if (!GameSettingsStorage.HasMouseSensitivity) MouseSensitivity = value;
         }
 
-        // Сохранённый микрофон, если он подключён, иначе первый доступный.
+        /// <summary>Сохранённый микрофон, если он подключён, иначе первый доступный.</summary>
+        /// <returns>null — микрофонов нет.</returns>
         public static string ResolveMicDevice()
         {
             var devices = Microphone.devices;

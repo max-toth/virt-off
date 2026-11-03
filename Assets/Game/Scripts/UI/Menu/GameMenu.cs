@@ -27,8 +27,10 @@ namespace Game.Scripts.UI.Menu
         private SettingsPresenter _settings;
         private bool _settingsShown;
 
+        /// <summary>Меню открыто: игровой ввод в это время не обрабатывается.</summary>
         public static bool IsOpen { get; private set; }
 
+        /// <summary>Меню открылось или закрылось; аргумент — открыто ли.</summary>
         public static event Action<bool> OpenChanged;
 
         private void OnEnable()

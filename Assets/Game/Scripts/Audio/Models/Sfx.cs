@@ -1,6 +1,6 @@
 namespace Game.Scripts.Audio.Models
 {
-    // Значения передаются по сети — новые добавлять только в конец.
+    /// <summary>Значения передаются по сети — новые добавлять только в конец.</summary>
     public enum Sfx : byte
     {
         Punch,

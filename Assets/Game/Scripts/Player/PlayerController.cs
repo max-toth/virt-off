@@ -45,7 +45,9 @@ namespace Game.Scripts.Player
         private Vector3 _spawnPosition;
         private Quaternion _spawnRotation;
 
+        /// <summary>Свой игрок в сцене.</summary>
         public static PlayerController Local { get; private set; }
+        /// <summary>Управление включено; меню по нему решает, захватывать ли курсор после закрытия.</summary>
         public static bool ControlsActive { get; private set; }
 
         public bool IsCrouching => _crouch.IsCrouching;
@@ -117,10 +119,13 @@ namespace Game.Scripts.Player
             _motor.Move(transform.TransformDirection(new Vector3(input.Move.x, 0f, input.Move.y)) * speed);
         }
 
+        /// <summary>Отброс от удара, м/с.</summary>
         public void AddImpulse(Vector3 velocity) => _motor.AddImpulse(velocity);
 
+        /// <summary>Тряска камеры, градусы.</summary>
         public void Shake(float degrees) => _look.AddShake(degrees);
 
+        /// <summary>Возвращает игрока на точку старта.</summary>
         public void Respawn()
         {
             // CharacterController перезаписывает transform, пока включён.

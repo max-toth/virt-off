@@ -1,6 +1,6 @@
 namespace Game.Scripts.Combat.Models
 {
-    // Значения передаются по сети — новые добавлять только в конец.
+    /// <summary>Значения передаются по сети — новые добавлять только в конец.</summary>
     public enum AttackKind : byte
     {
         Punch,

@@ -9,6 +9,7 @@ namespace Game.Scripts.Player.Sync
     {
         private static readonly Dictionary<string, RemotePlayer> ById = new(StringComparer.Ordinal);
 
+        /// <summary>Анимация чужого игрока по его id.</summary>
         public static bool TryGetWalk(string id, out ProceduralWalk walk)
         {
             if (id != null && ById.TryGetValue(id, out var player) && player.HasWalk)

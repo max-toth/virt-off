@@ -48,7 +48,8 @@ namespace Game.Scripts.Combat
             return true;
         }
 
-        // Двигает предмет перед камерой; false — в руках ничего нет (или предмет отобрали).
+        /// <summary>Двигает предмет перед камерой.</summary>
+        /// <returns>false — в руках ничего нет или предмет отобрали.</returns>
         public bool UpdateHold()
         {
             if (!IsHolding) return false;

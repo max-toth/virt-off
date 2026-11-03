@@ -31,7 +31,7 @@ namespace Game.Scripts.Voice.Capture
             IsRecording = true;
         }
 
-        // Забирает всё, что успел записать микрофон; лишнее сверх 5 секунд отбрасывается.
+        /// <summary>Забирает всё, что успел записать микрофон; лишнее сверх 5 секунд отбрасывается.</summary>
         public void Record(MicrophoneCapture capture, float[] frame)
         {
             while (capture.TryRead(frame))

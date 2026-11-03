@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Net.Packets
 {
-    // Общий буфер: только главный поток, NetManager.Send синхронный.
+    /// <summary>Общий переиспользуемый буфер исходящего пакета. Только главный поток: NetManager.Send отправляет синхронно.</summary>
     public sealed class PacketWriter
     {
         private const int InitialCapacity = 512;
@@ -60,6 +60,7 @@ namespace Game.Scripts.Net.Packets
             WriteSingle(value.w);
         }
 
+        /// <summary>Пишет строку как [length:1][UTF-8]: не длиннее 255 байт.</summary>
         public void WriteString(string value)
         {
             value ??= string.Empty;
