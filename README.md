@@ -86,7 +86,13 @@ Assets/
 │   │   │   ├── VoiceManager.cs        — Mic capture, Opus encode, send
 │   │   │   └── VoiceReceiver.cs       — Opus decode, AudioSource playback
 │   │   ├── Audio/
-│   │   │   └── GameSounds.cs          — Sound effects (loaded from Resources/Sounds)
+│   │   │   ├── Sfx.cs                 — Sound ids (sent over the network)
+│   │   │   ├── GameSounds.cs          — Plays SFX from a pooled set of AudioSources
+│   │   │   └── Synthesis/             — Fallback sounds when Resources/Sounds/<Sfx>/ is empty
+│   │   │       ├── ISfxSynthesizer.cs — Strategy interface
+│   │   │       ├── *Synthesizer.cs    — Punch / Slap / Whoosh / Impact strategies
+│   │   │       ├── SfxSynthesizerFactory.cs — Picks a strategy for an Sfx
+│   │   │       └── ProceduralClip.cs  — Renders a strategy into an AudioClip
 │   │   ├── UI/
 │   │   │   └── GameMenu.cs            — Esc menu (lobby, respawn, settings, quit)
 │   │   └── Settings/
@@ -96,7 +102,7 @@ Assets/
 │   │   └── MainSceneLoader.cs         — Opens the main scene on Editor startup
 │   ├── Prefabs/                       — Player, Workplace
 │   ├── Scenes/                        — Demo 3 - Office Set 1 (main)
-│   └── Resources/Sounds/              — SFX clips
+│   └── Resources/Sounds/<Sfx>/        — SFX clips, one folder per sound
 ├── ThirdParty/                    — external asset packs
 │   ├── VNB - Office Set/              — low-poly office furniture (VNB-Leo)
 │   ├── Floreswa/                      — low-poly characters (player model: male01_1)
