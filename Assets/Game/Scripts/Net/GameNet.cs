@@ -1,12 +1,17 @@
-public static class GameNet
+namespace Game.Scripts.Net
 {
-    private static NetManager instance;
-    public static NetManager Instance => instance;
-    public static void Set(NetManager nm) => instance = nm;
-
-    public static bool TryGetConnected(out NetManager manager)
+    public static class GameNet
     {
-        manager = instance;
-        return manager != null && manager.IsConnected;
+        public static NetManager Instance { get; private set; }
+
+        public static string LocalId => Instance?.LocalId;
+
+        public static bool TryGetConnected(out NetManager manager)
+        {
+            manager = Instance;
+            return manager != null && manager.IsConnected;
+        }
+
+        internal static void Set(NetManager manager) => Instance = manager;
     }
 }

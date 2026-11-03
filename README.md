@@ -65,18 +65,14 @@ Assets/
 ├── Game/                          — project content
 │   ├── Scripts/
 │   │   ├── Net/
-│   │   │   ├── AppSetup.cs            — Bootstraps networking before the first scene loads
-│   │   │   ├── NetComponent.cs        — Owns NetManager, connects to server (ServerConfig / -server arg)
-│   │   │   ├── GameNet.cs             — Global access point to the active NetManager
-│   │   │   ├── NetManager.cs          — Custom UDP client
-│   │   │   ├── PacketType.cs          — Packet ids used by combat and props
-│   │   │   ├── PacketWriter.cs        — Allocation-free packet serialization (reused buffer)
-│   │   │   ├── PacketReader.cs        — Bounds-checked packet parsing
-│   │   │   ├── PacketSubscription.cs  — Subscribes a handler to incoming packets once
-│   │   │   ├── MainThreadQueue.cs     — Dispatches network callbacks onto the Unity main thread
-│   │   │   ├── ServerConfig.cs        — ScriptableObject with server address/port
-│   │   │   ├── Lobby.cs               — Lobby state
-│   │   │   └── IdCodec.cs             — Network id encoding
+│   │   │   ├── NetClient.cs           — Connects before the first scene (ServerConfig / -server arg), pumps packets each frame
+│   │   │   ├── NetManager.cs          — UDP transport: receive thread → main-thread queue, PacketReceived / IdAssigned events
+│   │   │   ├── GameNet.cs             — Access point to the active connection (Instance, LocalId, TryGetConnected)
+│   │   │   ├── Lobby.cs               — Players present in the room (by voice / position packets), join / leave events
+│   │   │   ├── NetDiagnostics.cs      — Network logs, enabled by NET_DEBUG
+│   │   │   ├── Config/ServerConfig.cs — ScriptableObject with server address / port (asset: Resources/ServerConfig)
+│   │   │   ├── Models/LobbyPlayer.cs  — Lobby player: id, muted, speaking
+│   │   │   └── Packets/               — PacketType, PacketWriter, PacketReader, PacketSubscription, IdCodec
 │   │   ├── Player/
 │   │   │   ├── PlayerController.cs        — FPS movement (WASD + mouse look)
 │   │   │   ├── NetworkPlayerController.cs — Enables PlayerController after net connect
@@ -124,7 +120,7 @@ Assets/
 │   │   └── MainSceneLoader.cs         — Opens the main scene on Editor startup
 │   ├── Prefabs/                       — Player, Workplace
 │   ├── Scenes/                        — Demo 3 - Office Set 1 (main)
-│   └── Resources/Sounds/<Sfx>/        — SFX clips, one folder per sound
+│   └── Resources/                     — ServerConfig.asset, Sounds/<Sfx>/ (SFX clips, one folder per sound)
 ├── ThirdParty/                    — external asset packs
 │   ├── VNB - Office Set/              — low-poly office furniture (VNB-Leo)
 │   ├── Floreswa/                      — low-poly characters (player model: male01_1)

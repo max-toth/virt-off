@@ -1,7 +1,9 @@
-namespace Game.Scripts.Net
+namespace Game.Scripts.Net.Packets
 {
     public static class PacketType
     {
+        public const byte Voice = 0x01;
+        public const byte Position = 0x02;
         public const byte Attack = 0x03;
         public const byte PropState = 0x04;
         public const byte Sound = 0x05;
@@ -12,5 +14,8 @@ namespace Game.Scripts.Net
         public const byte PropGrant = 0x0A;
         public const byte PropReleaseEvent = 0x0B;
         public const byte PropSnapshot = 0x0C;
+        public const byte Disconnect = 0x0D;
+        public const byte IdAssigned = 0xFE;
+        public const byte Hello = 0xFF;
     }
 }

@@ -1,5 +1,6 @@
 using Game.Scripts.Combat.Props.Models;
 using Game.Scripts.Net;
+using Game.Scripts.Net.Packets;
 using UnityEngine;
 
 namespace Game.Scripts.Combat.Props

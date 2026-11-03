@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Game.Scripts.Net;
+using Game.Scripts.Net.Packets;
 using UnityEngine;
 
 public class PositionSync : MonoBehaviour
@@ -47,7 +49,7 @@ public class PositionSync : MonoBehaviour
 
         var nm = GameNet.Instance;
         if (nm != null)
-            nm.OnPacketReceived += OnPacket;
+            nm.PacketReceived += OnPacket;
         Lobby.PlayerLeft += OnPlayerLeft;
     }
 
@@ -188,7 +190,7 @@ public class PositionSync : MonoBehaviour
         if (instance == this) instance = null;
         var nm = GameNet.Instance;
         if (nm != null)
-            nm.OnPacketReceived -= OnPacket;
+            nm.PacketReceived -= OnPacket;
         Lobby.PlayerLeft -= OnPlayerLeft;
         if (avatarTemplate != null) Destroy(avatarTemplate);
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Game.Scripts.Combat.Models;
 using Game.Scripts.Combat.Props;
+using Game.Scripts.Net;
 using UnityEngine;
 
 namespace Game.Scripts.Combat

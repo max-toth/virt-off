@@ -1,8 +1,7 @@
 using System;
 
-namespace Game.Scripts.Net
+namespace Game.Scripts.Net.Packets
 {
-    // Подписка обработчика на входящие пакеты активного NetManager без повторной подписки.
     public sealed class PacketSubscription
     {
         private readonly Action<string, byte[]> _handler;
@@ -16,12 +15,12 @@ namespace Game.Scripts.Net
 
             Unbind();
             _manager = manager;
-            if (manager != null) manager.OnPacketReceived += _handler;
+            if (manager != null) manager.PacketReceived += _handler;
         }
 
         public void Unbind()
         {
-            if (_manager != null) _manager.OnPacketReceived -= _handler;
+            if (_manager != null) _manager.PacketReceived -= _handler;
             _manager = null;
         }
     }

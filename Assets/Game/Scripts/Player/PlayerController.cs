@@ -1,5 +1,6 @@
 using Game.Scripts.Combat;
 using Game.Scripts.Combat.Props;
+using Game.Scripts.Net;
 using UnityEngine;
 using UnityEngine.InputSystem;
 

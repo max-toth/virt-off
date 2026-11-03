@@ -2,8 +2,7 @@ using System.Diagnostics;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Логи сетевых событий предметов. Включаются символом NETPROP_DEBUG
-    // (Project Settings → Player → Scripting Define Symbols); без него вызовы вырезаются компилятором.
+    // Включается символом NETPROP_DEBUG.
     internal static class NetPropDiagnostics
     {
         private const string Symbol = "NETPROP_DEBUG";

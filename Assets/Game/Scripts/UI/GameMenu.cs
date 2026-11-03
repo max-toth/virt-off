@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using Game.Scripts.Net;
+using Game.Scripts.Net.Models;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -221,7 +223,7 @@ public class GameMenu : MonoBehaviour
         GUILayout.EndHorizontal();
     }
 
-    void DrawPlayerRow(Lobby.Player p)
+    void DrawPlayerRow(LobbyPlayer p)
     {
         GUILayout.BeginHorizontal();
         DrawDot(p.Muted ? MutedColor : (p.IsSpeaking ? SpeakingColor : SilentColor));

@@ -1,103 +1,79 @@
 using System;
 using System.Collections.Generic;
+using Game.Scripts.Net.Models;
+using Game.Scripts.Net.Packets;
 using UnityEngine;
 
-// Список игроков в лобби. Отдельного списка сервер не присылает, поэтому игрок
-// считается присутствующим, пока от него приходят пакеты позиции или голоса.
-public class Lobby : MonoBehaviour
+namespace Game.Scripts.Net
 {
-    public const float TimeoutSeconds = 5f;
-    const float SpeakingHoldSeconds = 0.3f;
-
-    public class Player
+    public static class Lobby
     {
-        public string Id;
-        public float LastSeen;
-        public float LastVoice = -100f;
-        public bool Muted;
-        public bool IsSpeaking => Time.unscaledTime - LastVoice < SpeakingHoldSeconds;
-    }
+        private const float TimeoutSeconds = 5f;
 
-    public static event Action<string> PlayerJoined;
-    public static event Action<string> PlayerLeft;
+        private static readonly Dictionary<string, LobbyPlayer> PlayersById = new(StringComparer.Ordinal);
+        private static readonly List<string> Expired = new();
+        private static readonly PacketSubscription Subscription = new(OnPacket);
 
-    static readonly Dictionary<string, Player> players = new Dictionary<string, Player>(StringComparer.Ordinal);
-    static readonly List<string> expired = new List<string>();
+        public static event Action<string> PlayerJoined;
+        public static event Action<string> PlayerLeft;
 
-    public static ICollection<Player> Players => players.Values;
+        public static IReadOnlyCollection<LobbyPlayer> Players => PlayersById.Values;
 
-    public static bool IsMuted(string id) => players.TryGetValue(id, out var p) && p.Muted;
+        public static bool IsMuted(string id) => PlayersById.TryGetValue(id, out var player) && player.Muted;
 
-    // Сброс статики до загрузки сцены, чтобы компоненты сцены могли подписаться в Awake
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics()
-    {
-        players.Clear();
-        PlayerJoined = null;
-        PlayerLeft = null;
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    static void Bootstrap()
-    {
-        var go = new GameObject("Lobby");
-        DontDestroyOnLoad(go);
-        go.AddComponent<Lobby>();
-    }
-
-    void Start()
-    {
-        var nm = GameNet.Instance;
-        if (nm != null)
-            nm.OnPacketReceived += OnPacket;
-    }
-
-    void OnDestroy()
-    {
-        var nm = GameNet.Instance;
-        if (nm != null)
-            nm.OnPacketReceived -= OnPacket;
-    }
-
-    // 0x01 — голос, 0x02 — позиция; id отправителя: [idLen:1][id UTF-8] после типа
-    private void OnPacket(string localId, byte[] data)
-    {
-        if (data.Length < 2 || (data[0] != 0x01 && data[0] != 0x02)) return;
-
-        string id = IdCodec.Read(data, 1, out _);
-        if (id == localId) return;
-
-        if (!players.TryGetValue(id, out var p))
+        public static void MarkSpeaking(string id)
         {
-            p = new Player { Id = id };
-            players.Add(id, p);
-            Debug.Log($"[Lobby] {id} joined");
-            PlayerJoined?.Invoke(id);
+            if (PlayersById.TryGetValue(id, out var player)) player.MarkSpeaking();
         }
 
-        p.LastSeen = Time.unscaledTime;
-    }
-
-    // Клиенты шлют голос непрерывно, поэтому «говорит» определяет VoiceReceiver по громкости
-    public static void MarkSpeaking(string id)
-    {
-        if (players.TryGetValue(id, out var p))
-            p.LastVoice = Time.unscaledTime;
-    }
-
-    void Update()
-    {
-        float now = Time.unscaledTime;
-        expired.Clear();
-        foreach (var p in players.Values)
-            if (now - p.LastSeen > TimeoutSeconds)
-                expired.Add(p.Id);
-
-        foreach (var id in expired)
+        internal static void RemoveExpired()
         {
-            players.Remove(id);
-            Debug.Log($"[Lobby] {id} left");
-            PlayerLeft?.Invoke(id);
+            var now = Time.unscaledTime;
+            Expired.Clear();
+            // ReSharper disable once LoopCanBePartlyConvertedToQuery
+            foreach (var player in PlayersById.Values)
+            {
+                if (now - player.LastSeen > TimeoutSeconds) Expired.Add(player.Id);
+            }
+
+            foreach (var id in Expired)
+            {
+                PlayersById.Remove(id);
+                NetDiagnostics.Log($"[Lobby] {id} left");
+                // ReSharper disable once Unity.PerformanceCriticalCodeInvocation
+                PlayerLeft?.Invoke(id);
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetState()
+        {
+            Subscription.Unbind();
+            PlayersById.Clear();
+            PlayerJoined = null;
+            PlayerLeft = null;
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void Subscribe() => Subscription.Bind(GameNet.Instance);
+
+        private static void OnPacket(string localId, byte[] data)
+        {
+            if (data.Length < 2 || (data[0] != PacketType.Voice && data[0] != PacketType.Position)) return;
+
+            var reader = new PacketReader(data);
+            var id = reader.ReadString();
+            if (reader.Failed || id == localId) return;
+
+            if (!PlayersById.TryGetValue(id, out var player))
+            {
+                player = new LobbyPlayer(id);
+                PlayersById.Add(id, player);
+                NetDiagnostics.Log($"[Lobby] {id} joined");
+                PlayerJoined?.Invoke(id);
+            }
+
+            player.LastSeen = Time.unscaledTime;
         }
     }
 }

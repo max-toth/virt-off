@@ -1,3 +1,4 @@
+using Game.Scripts.Net;
 using UnityEngine;
 
 public class NetworkPlayerController : MonoBehaviour

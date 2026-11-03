@@ -1,4 +1,5 @@
 ﻿using Game.Scripts.Combat.Models;
+using Game.Scripts.Net;
 using UnityEngine;
 using UnityEngine.InputSystem;
 

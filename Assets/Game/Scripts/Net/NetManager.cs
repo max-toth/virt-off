@@ -2,93 +2,111 @@ using System;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
-using UnityEngine;
+using Game.Scripts.Net.Packets;
 
-public class NetManager : IDisposable
+namespace Game.Scripts.Net
 {
-    public event Action<string, byte[]> OnPacketReceived;
-    public event Action OnIdAssigned;
-
-    private UdpClient socket;
-    private Thread recvThread;
-    private volatile bool running;
-    private IPEndPoint serverEndpoint;
-    public string LocalId { get; private set; }
-    public bool IsConnected { get; private set; }
-
-    public void StartClient(string host, int port)
+    public sealed class NetManager : IDisposable
     {
-        socket = new UdpClient();
-        serverEndpoint = new IPEndPoint(IPAddress.Parse(host), port);
-        SendRaw(serverEndpoint, new byte[] { 0xFF });
+        private const int ReceiveThreadJoinTimeoutMs = 500;
 
-        Debug.Log($"[Net] Connecting to {host}:{port}");
+        private static readonly byte[] HelloPacket = { PacketType.Hello };
 
-        running = true;
-        recvThread = new Thread(ReceiveLoop) { IsBackground = true };
-        recvThread.Start();
-    }
+        private readonly ConcurrentQueue<byte[]> _incoming = new();
+        private UdpClient _socket;
+        private IPEndPoint _server;
+        private Thread _receiveThread;
+        private volatile bool _running;
 
-    public void Send(byte[] data) => Send(data, data.Length);
+        public event Action<string, byte[]> PacketReceived;
+        public event Action IdAssigned;
 
-    public void Send(byte[] data, int length)
-    {
-        if (serverEndpoint != null)
-            SendRaw(serverEndpoint, data, length);
-    }
+        public string LocalId { get; private set; }
+        public bool IsConnected { get; private set; }
 
-    private void SendRaw(IPEndPoint ep, byte[] data) => SendRaw(ep, data, data.Length);
-
-    private void SendRaw(IPEndPoint ep, byte[] data, int length)
-    {
-        try { socket.Send(data, length, ep); }
-        catch { }
-    }
-
-    private void ReceiveLoop()
-    {
-        while (running)
+        public void StartClient(string host, int port)
         {
+            _socket = new UdpClient();
+            _server = new IPEndPoint(IPAddress.Parse(host), port);
+            Send(HelloPacket);
+
+            _running = true;
+            _receiveThread = new Thread(ReceiveLoop) { IsBackground = true, Name = "NetManager.Receive" };
+            _receiveThread.Start();
+        }
+
+        public void Send(byte[] data) => Send(data, data.Length);
+
+        public void Send(byte[] data, int length)
+        {
+            if (_server == null) return;
+
             try
             {
-                var remoteEp = new IPEndPoint(IPAddress.Any, 0);
-                byte[] data = socket.Receive(ref remoteEp);
-                MainThreadQueue.Enqueue(() => HandlePacket(data));
+                _socket.Send(data, length, _server);
             }
-            catch { break; }
+            catch (SocketException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
-    }
 
-    private void HandlePacket(byte[] data)
-    {
-        if (data.Length >= 2 && data[0] == 0xFE)
+        public void ProcessIncoming()
         {
-            LocalId = System.Text.Encoding.UTF8.GetString(data, 1, data.Length - 1);
-            IsConnected = true;
-            Debug.Log($"[Net] Got ID: {LocalId}");
-            OnIdAssigned?.Invoke();
-            return;
+            while (_incoming.TryDequeue(out var data))
+                Handle(data);
         }
 
-        OnPacketReceived?.Invoke(LocalId, data);
-    }
-
-    public void Dispose()
-    {
-        if (IsConnected && !string.IsNullOrEmpty(LocalId))
+        public void Dispose()
         {
-            // 0x0D DISCONNECT: [id:str]
-            byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(LocalId);
-            var p = new byte[1 + 1 + idBytes.Length];
-            p[0] = 0x0D;
-            p[1] = (byte)idBytes.Length;
-            System.Array.Copy(idBytes, 0, p, 2, idBytes.Length);
-            SendRaw(serverEndpoint, p);
+            if (IsConnected && !string.IsNullOrEmpty(LocalId))
+            {
+                var writer = PacketWriter.Shared;
+                writer.Begin(PacketType.Disconnect);
+                writer.WriteString(LocalId);
+                writer.SendTo(this);
+            }
+
+            _running = false;
+            _socket?.Close();
+            _receiveThread?.Join(ReceiveThreadJoinTimeoutMs);
         }
 
-        running = false;
-        socket?.Close();
-        recvThread?.Join(500);
+        private void Handle(byte[] data)
+        {
+            if (data.Length >= 2 && data[0] == PacketType.IdAssigned)
+            {
+                LocalId = Encoding.UTF8.GetString(data, 1, data.Length - 1);
+                IsConnected = true;
+                IdAssigned?.Invoke();
+                return;
+            }
+
+            PacketReceived?.Invoke(LocalId, data);
+        }
+
+        private void ReceiveLoop()
+        {
+            var remote = new IPEndPoint(IPAddress.Any, 0);
+            while (_running)
+            {
+                try
+                {
+                    _incoming.Enqueue(_socket.Receive(ref remote));
+                }
+                catch (SocketException e) when (_running && e.SocketErrorCode == SocketError.ConnectionReset)
+                {
+                    // Windows: ICMP «порт недоступен», пока сервер не запущен.
+                }
+                catch (Exception)
+                {
+                    break;
+                }
+            }
+        }
     }
 }

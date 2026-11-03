@@ -3,10 +3,8 @@ using System.Buffers.Binary;
 using System.Text;
 using UnityEngine;
 
-namespace Game.Scripts.Net
+namespace Game.Scripts.Net.Packets
 {
-    // Чтение пакета с проверкой границ: при выходе за конец данных Failed становится true,
-    // дальнейшие чтения возвращают значения по умолчанию.
     public struct PacketReader
     {
         private readonly byte[] _data;
@@ -35,9 +33,9 @@ namespace Game.Scripts.Net
 
         public float ReadSingle() => BitConverter.Int32BitsToSingle(ReadInt32());
 
-        public Vector3 ReadVector3() => new Vector3(ReadSingle(), ReadSingle(), ReadSingle());
+        public Vector3 ReadVector3() => new(ReadSingle(), ReadSingle(), ReadSingle());
 
-        public Quaternion ReadQuaternion() => new Quaternion(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
+        public Quaternion ReadQuaternion() => new(ReadSingle(), ReadSingle(), ReadSingle(), ReadSingle());
 
         public string ReadString()
         {

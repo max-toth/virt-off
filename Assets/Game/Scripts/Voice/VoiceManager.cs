@@ -1,6 +1,8 @@
-using UnityEngine;
-using Concentus.Structs;
 using Concentus.Enums;
+using Concentus.Structs;
+using Game.Scripts.Net;
+using Game.Scripts.Net.Packets;
+using UnityEngine;
 
 public class VoiceManager : MonoBehaviour
 {
@@ -48,7 +50,7 @@ public class VoiceManager : MonoBehaviour
         var nm = GameNet.Instance;
         if (nm == null) return;
 
-        nm.OnPacketReceived += OnVoicePacket;
+        nm.PacketReceived += OnVoicePacket;
         GameSettings.MicDeviceChanged += RestartMic;
         TryInitMic();
     }
@@ -327,6 +329,6 @@ public class VoiceManager : MonoBehaviour
         if (waveformTex != null) DestroyImmediate(waveformTex);
         var nm = GameNet.Instance;
         if (nm != null)
-            nm.OnPacketReceived -= OnVoicePacket;
+            nm.PacketReceived -= OnVoicePacket;
     }
 }

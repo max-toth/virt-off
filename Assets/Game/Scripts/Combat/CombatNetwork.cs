@@ -3,6 +3,7 @@ using Game.Scripts.Audio;
 using Game.Scripts.Audio.Models;
 using Game.Scripts.Combat.Models;
 using Game.Scripts.Net;
+using Game.Scripts.Net.Packets;
 using UnityEngine;
 
 namespace Game.Scripts.Combat

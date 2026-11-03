@@ -3,10 +3,9 @@ using System.Buffers.Binary;
 using System.Text;
 using UnityEngine;
 
-namespace Game.Scripts.Net
+namespace Game.Scripts.Net.Packets
 {
-    // Переиспользуемый буфер исходящего пакета. Только для главного потока:
-    // NetManager.Send отправляет синхронно, поэтому буфер свободен сразу после SendTo.
+    // Общий буфер: только главный поток, NetManager.Send синхронный.
     public sealed class PacketWriter
     {
         private const int InitialCapacity = 512;
@@ -61,7 +60,6 @@ namespace Game.Scripts.Net
             WriteSingle(value.w);
         }
 
-        // [length:1][UTF-8] — тот же формат, что IdCodec.Write.
         public void WriteString(string value)
         {
             value ??= string.Empty;

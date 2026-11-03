@@ -1,5 +1,6 @@
 using Game.Scripts.Combat.Props.Models;
 using Game.Scripts.Net;
+using Game.Scripts.Net.Packets;
 using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
@@ -8,10 +9,37 @@ namespace Game.Scripts.Combat.Props
     {
         private const byte ReleaseFlagsNone = 0;
 
+        private static NetManager _subscribedManager;
+        private static bool _manifestSent;
+
         public static bool IsConnected => GameNet.TryGetConnected(out _);
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetState()
+        {
+            _subscribedManager = null;
+            _manifestSent = false;
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void Initialize()
+        {
+            var manager = GameNet.Instance;
+            if (manager == null || manager == _subscribedManager) return;
+
+            _subscribedManager = manager;
+            manager.IdAssigned += OnIdAssigned;
+        }
+
+        private static void OnIdAssigned()
+        {
+            if (_manifestSent) return;
+            _manifestSent = true;
+            SendManifest();
+        }
+
         // MANIFEST: [type][sender:str][count:2]{[key:str][halfExtents:12][mass:4]}*
-        public static void SendManifest()
+        private static void SendManifest()
         {
             var manager = GameNet.Instance;
             var props = NetPropRegistry.All;

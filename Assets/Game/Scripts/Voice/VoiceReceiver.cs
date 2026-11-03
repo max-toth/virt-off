@@ -1,7 +1,8 @@
+using System.Collections.Generic;
+using Concentus.Structs;
+using Game.Scripts.Net;
 using UnityEngine;
 using UnityEngine.UI;
-using Concentus.Structs;
-using System.Collections.Generic;
 
 public class VoiceReceiver : MonoBehaviour
 {
