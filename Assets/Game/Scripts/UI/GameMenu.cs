@@ -3,6 +3,8 @@ using System.Linq;
 using Game.Scripts.Net;
 using Game.Scripts.Net.Models;
 using Game.Scripts.Player;
+using Game.Scripts.Settings;
+using Game.Scripts.Voice;
 using UnityEngine;
 using UnityEngine.InputSystem;
 

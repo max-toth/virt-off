@@ -1,4 +1,5 @@
 using Game.Scripts.Combat;
+using Game.Scripts.Settings;
 using UnityEngine;
 
 namespace Game.Scripts.Player
@@ -60,8 +61,7 @@ namespace Game.Scripts.Player
             _crouch = new PlayerCrouch(_controller, cameraTransform, crouchHeight, crouchTransitionSpeed);
             _motor = new PlayerMotor(_controller, gravity, jumpHeight, knockbackDamping);
 
-            if (!PlayerPrefs.HasKey(GameSettings.KeyMouseSensitivity))
-                GameSettings.MouseSensitivity = mouseSensitivity;
+            GameSettings.ApplyDefaultMouseSensitivity(mouseSensitivity);
 
             SetupKinematicBody();
             EnsureComponent<PlayerPropPusher>();

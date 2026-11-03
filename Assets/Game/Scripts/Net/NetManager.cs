@@ -30,14 +30,12 @@ namespace Game.Scripts.Net
         {
             _socket = new UdpClient();
             _server = new IPEndPoint(IPAddress.Parse(host), port);
-            Send(HelloPacket);
+            Send(HelloPacket, HelloPacket.Length);
 
             _running = true;
             _receiveThread = new Thread(ReceiveLoop) { IsBackground = true, Name = "NetManager.Receive" };
             _receiveThread.Start();
         }
-
-        public void Send(byte[] data) => Send(data, data.Length);
 
         public void Send(byte[] data, int length)
         {

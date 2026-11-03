@@ -73,7 +73,7 @@ Assets/
 │   │   │   ├── NetDiagnostics.cs      — Network logs, enabled by NET_DEBUG
 │   │   │   ├── Config/ServerConfig.cs — ScriptableObject with server address / port (asset: Resources/ServerConfig)
 │   │   │   ├── Models/LobbyPlayer.cs  — Lobby player: id, muted, speaking
-│   │   │   └── Packets/               — PacketType, PacketWriter, PacketReader, PacketSubscription, IdCodec
+│   │   │   └── Packets/               — PacketType, PacketWriter, PacketReader, PacketSubscription
 │   │   ├── Player/
 │   │   │   ├── PlayerController.cs        — Local player: wires input to look / crouch / motor, respawn
 │   │   │   ├── PlayerInputReader.cs       — Keyboard + mouse → PlayerInputState
@@ -119,8 +119,15 @@ Assets/
 │   │   │       ├── NetPropDiagnostics.cs  — Logs prop events
 │   │   │       └── Models/                — PropStateFlags
 │   │   ├── Voice/
-│   │   │   ├── VoiceManager.cs        — Mic capture, Opus encode, send
-│   │   │   └── VoiceReceiver.cs       — Opus decode, AudioSource playback
+│   │   │   ├── VoiceManager.cs        — Own voice: mic → Opus → server, hotkeys M / R / U / J
+│   │   │   ├── VoiceReceiver.cs       — Other players' voice: one VoiceStream per speaker
+│   │   │   ├── VoiceDebugHud.cs       — Debug overlay: id, mic, speakers, status, waveform
+│   │   │   ├── VoiceNetwork.cs        — VOICE packet
+│   │   │   ├── VoiceFormat.cs         — 16 kHz mono, 640-sample (40 ms) frames
+│   │   │   ├── VoiceDiagnostics.cs    — Voice logs, enabled by VOICE_DEBUG
+│   │   │   ├── Capture/               — MicrophoneCapture, VoiceEncoder, MicTest
+│   │   │   ├── Playback/              — VoiceStream (Opus decode → ring buffer → AudioSource)
+│   │   │   └── Models/                — VoicePacket
 │   │   ├── Audio/
 │   │   │   ├── Models/Sfx.cs          — Sound ids (sent over the network)
 │   │   │   ├── GameSounds.cs          — Plays SFX from a pooled set of AudioSources
@@ -132,7 +139,8 @@ Assets/
 │   │   ├── UI/
 │   │   │   └── GameMenu.cs            — Esc menu (lobby, respawn, settings, quit)
 │   │   └── Settings/
-│   │       └── GameSettings.cs        — Player settings
+│   │       ├── GameSettings.cs        — Client settings (mic, volume, mouse, video), MicDeviceChanged event
+│   │       └── GameSettingsStorage.cs — PlayerPrefs persistence
 │   ├── Editor/
 │   │   ├── CreateDemo3Scene.cs        — Tool: generate office scene
 │   │   └── MainSceneLoader.cs         — Opens the main scene on Editor startup

@@ -69,6 +69,13 @@ namespace Game.Scripts.Net.Packets
             _length += Encoding.UTF8.GetBytes(value, 0, value.Length, _buffer, _length);
         }
 
+        public void WriteBytes(byte[] source, int offset, int count)
+        {
+            EnsureCapacity(count);
+            Buffer.BlockCopy(source, offset, _buffer, _length, count);
+            _length += count;
+        }
+
         public void SendTo(NetManager manager) => manager.Send(_buffer, _length);
 
         private void EnsureCapacity(int count)

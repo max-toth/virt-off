@@ -8,18 +8,19 @@ namespace Game.Scripts.Net.Packets
     public struct PacketReader
     {
         private readonly byte[] _data;
-        private int _offset;
 
         public PacketReader(byte[] data, int offset = 1)
         {
             _data = data;
-            _offset = offset;
+            Position = offset;
             Failed = false;
         }
 
         public bool Failed { get; private set; }
 
-        public int Remaining => Failed ? 0 : _data.Length - _offset;
+        public int Position { get; private set; }
+
+        public int Remaining => Failed ? 0 : _data.Length - Position;
 
         public byte ReadByte() => TryAdvance(1, out var start) ? _data[start] : (byte)0;
 
@@ -49,14 +50,14 @@ namespace Game.Scripts.Net.Packets
 
         private bool TryAdvance(int count, out int start)
         {
-            start = _offset;
-            if (Failed || _offset + count > _data.Length)
+            start = Position;
+            if (Failed || Position + count > _data.Length)
             {
                 Failed = true;
                 return false;
             }
 
-            _offset += count;
+            Position += count;
             return true;
         }
     }

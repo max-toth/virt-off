@@ -1,4 +1,5 @@
 using Game.Scripts.Player.Models;
+using Game.Scripts.Settings;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
