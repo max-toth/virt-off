@@ -1,0 +1,82 @@
+using System;
+using System.Buffers.Binary;
+using System.Text;
+using UnityEngine;
+
+namespace Game.Scripts.Net
+{
+    // Переиспользуемый буфер исходящего пакета. Только для главного потока:
+    // NetManager.Send отправляет синхронно, поэтому буфер свободен сразу после SendTo.
+    public sealed class PacketWriter
+    {
+        private const int InitialCapacity = 512;
+
+        private byte[] _buffer = new byte[InitialCapacity];
+        private int _length;
+
+        public static PacketWriter Shared { get; } = new();
+
+        public void Begin(byte packetType)
+        {
+            _length = 0;
+            WriteByte(packetType);
+        }
+
+        public void WriteByte(byte value)
+        {
+            EnsureCapacity(1);
+            _buffer[_length++] = value;
+        }
+
+        public void WriteBool(bool value) => WriteByte(value ? (byte)1 : (byte)0);
+
+        public void WriteUInt16(int value)
+        {
+            EnsureCapacity(2);
+            BinaryPrimitives.WriteUInt16LittleEndian(_buffer.AsSpan(_length, 2), (ushort)value);
+            _length += 2;
+        }
+
+        public void WriteInt32(int value)
+        {
+            EnsureCapacity(4);
+            BinaryPrimitives.WriteInt32LittleEndian(_buffer.AsSpan(_length, 4), value);
+            _length += 4;
+        }
+
+        public void WriteSingle(float value) => WriteInt32(BitConverter.SingleToInt32Bits(value));
+
+        public void WriteVector3(Vector3 value)
+        {
+            WriteSingle(value.x);
+            WriteSingle(value.y);
+            WriteSingle(value.z);
+        }
+
+        public void WriteQuaternion(Quaternion value)
+        {
+            WriteSingle(value.x);
+            WriteSingle(value.y);
+            WriteSingle(value.z);
+            WriteSingle(value.w);
+        }
+
+        // [length:1][UTF-8] — тот же формат, что IdCodec.Write.
+        public void WriteString(string value)
+        {
+            value ??= string.Empty;
+            var byteCount = Encoding.UTF8.GetByteCount(value);
+            EnsureCapacity(1 + byteCount);
+            _buffer[_length++] = (byte)byteCount;
+            _length += Encoding.UTF8.GetBytes(value, 0, value.Length, _buffer, _length);
+        }
+
+        public void SendTo(NetManager manager) => manager.Send(_buffer, _length);
+
+        private void EnsureCapacity(int count)
+        {
+            if (_length + count > _buffer.Length)
+                Array.Resize(ref _buffer, Math.Max(_buffer.Length * 2, _length + count));
+        }
+    }
+}

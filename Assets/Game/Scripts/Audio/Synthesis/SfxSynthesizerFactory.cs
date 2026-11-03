@@ -1,3 +1,5 @@
+using Game.Scripts.Audio.Models;
+
 namespace Game.Scripts.Audio.Synthesis
 {
     public static class SfxSynthesizerFactory

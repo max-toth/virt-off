@@ -1,266 +1,118 @@
-﻿using System;
-using Game.Scripts.Audio;
+﻿using Game.Scripts.Combat.Models;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// Драка и предметы для своего игрока:
-//   ЛКМ — удар кулаком, ПКМ — лещ,
-//   E — взять предмет (стул и т.п.); с предметом в руках ЛКМ — бросить, E/ПКМ — положить.
-// Попадание считает тот, кто бьёт, и рассылает пакет; жертва у себя получает отброс.
-[RequireComponent(typeof(PlayerController))]
-public class PlayerCombat : MonoBehaviour
+namespace Game.Scripts.Combat
 {
-    // 0x03 | attackerIdLen(1) | attackerId | kind(1) | targetIdLen(1) | targetId(0 — мимо) | point(12) | impulse(12) | hitObject(1)
-    public const byte PacketAttack = 0x03;
-
-    public enum AttackKind : byte { Punch, Slap, Prop }
-
-    [Header("Удары")]
-    public float reach = 1.7f;
-    public float punchCooldown = 0.45f;
-    public float slapCooldown = 0.6f;
-    [Tooltip("Отброс противника, м/с")]
-    public float punchForce = 6f;
-    public float slapForce = 3.5f;
-    [Tooltip("Сила удара по предметам")]
-    public float propHitImpulse = 4f;
-
-    [Header("Предметы")]
-    public float pickupDistance = 2.5f;
-    public float holdDistance = 1.3f;
-    public float throwSpeed = 13f;
-
-    PlayerController player;
-    CharacterController controller;
-    Camera cam;
-    ProceduralWalk walk;
-    NetProp held;
-    Quaternion heldRotOffset;
-    float nextAttackTime;
-    NetProp aimedProp;
-
-    void Awake()
+    // Ввод драки своего игрока: ЛКМ — удар, ПКМ — лещ, E — взять предмет;
+    // с предметом в руках ЛКМ — бросить, E/ПКМ — положить.
+    [RequireComponent(typeof(PlayerController), typeof(CombatHud))]
+    public class PlayerCombat : MonoBehaviour
     {
-        player = GetComponent<PlayerController>();
-        controller = GetComponent<CharacterController>();
-        cam = GetComponentInChildren<Camera>();
-    }
+        private const float HoldAnimationTime = 0.1f;
+        private const float KnockbackDropFactor = 0.5f;
 
-    void OnEnable()
-    {
-        var nm = GameNet.Instance;
-        if (nm != null) nm.OnPacketReceived += OnPacket;
-    }
+        [SerializeField] private MeleeSettings melee = new();
+        [SerializeField] private CarrySettings carry = new();
 
-    void OnDisable()
-    {
-        var nm = GameNet.Instance;
-        if (nm != null) nm.OnPacketReceived -= OnPacket;
-        if (held != null) Drop(Vector3.zero);
-    }
+        private PlayerController _player;
+        private CharacterController _controller;
+        private MeleeAttacker _attacker;
+        private PropCarrier _carrier;
+        private ProceduralWalk _walk;
+        private bool _hasWalk;
 
-    static string LocalId => GameNet.Instance?.LocalId;
+        public bool IsActive => _player.enabled && !GameMenu.IsOpen;
+        public bool IsHolding => _carrier.IsHolding;
+        public bool HasAimedProp => _carrier.HasAimedProp;
 
-    void Update()
-    {
-        if (walk == null) walk = GetComponentInChildren<ProceduralWalk>();
-
-        var kb = Keyboard.current;
-        var ms = Mouse.current;
-        aimedProp = null;
-        if (kb == null || ms == null || !player.enabled || GameMenu.IsOpen) return;
-
-        if (held != null)
+        private void Awake()
         {
-            if (ms.leftButton.wasPressedThisFrame) Throw();
-            else if (kb.eKey.wasPressedThisFrame || ms.rightButton.wasPressedThisFrame) Drop(controller.velocity);
-            return;
+            _player = GetComponent<PlayerController>();
+            _controller = GetComponent<CharacterController>();
+            var view = GetComponentInChildren<Camera>().transform;
+            _attacker = new MeleeAttacker(transform, view, melee);
+            _carrier = new PropCarrier(transform, view, _controller, carry);
         }
 
-        aimedProp = AimProp();
-        if (kb.eKey.wasPressedThisFrame && aimedProp != null) { Pickup(aimedProp); return; }
-
-        if (Time.time < nextAttackTime) return;
-        if (ms.leftButton.wasPressedThisFrame) Attack(AttackKind.Punch);
-        else if (ms.rightButton.wasPressedThisFrame) Attack(AttackKind.Slap);
-    }
-
-    void LateUpdate()
-    {
-        if (held == null) return;
-        // IsHeld остаётся true и пока ждём PROP_GRANT (оптимистичный захват), и после него;
-        // сбрасывается при тайм-ауте, отказе сервера или если предмет забрал другой игрок.
-        if (!held.IsHeld) { held = null; return; } // предмет отобрали
-        Vector3 pos = cam.transform.position + cam.transform.forward * holdDistance - Vector3.up * 0.35f;
-        Quaternion rot = Quaternion.Euler(0, transform.eulerAngles.y, 0) * heldRotOffset;
-        held.MoveHeld(pos, rot);
-        if (walk != null) walk.holdUntil = Time.time + 0.1f;
-    }
-
-    // ---------- Удары ----------
-
-    void Attack(AttackKind kind)
-    {
-        nextAttackTime = Time.time + (kind == AttackKind.Punch ? punchCooldown : slapCooldown);
-        if (walk != null) walk.PlayAttack(kind == AttackKind.Slap);
-        player.Shake(kind == AttackKind.Punch ? 1.5f : 1f);
-
-        Vector3 origin = cam.transform.position;
-        Vector3 dir = cam.transform.forward;
-        string target = null;
-        Vector3 point = origin + dir * reach;
-        Vector3 impulse = Vector3.zero;
-        bool hitSomething = false;
-
-        var hits = Physics.SphereCastAll(origin, 0.25f, dir, reach, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
-        Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-        foreach (var h in hits)
+        private void OnEnable()
         {
-            if (h.collider.transform.IsChildOf(transform)) continue;
-            if (held != null && NetProp.Find(h.collider) == held) continue;
-            hitSomething = true;
-            point = h.distance > 0 ? h.point : h.collider.ClosestPoint(origin);
+            ProceduralWalk.Created += OnWalkCreated;
+            CombatNetwork.HitReceived += OnHitReceived;
+        }
 
-            var avatar = h.collider.GetComponentInParent<RemoteAvatar>();
-            if (avatar != null)
+        private void Start()
+        {
+            if (_hasWalk) return;
+            _walk = GetComponentInChildren<ProceduralWalk>();
+            _hasWalk = _walk != null;
+        }
+
+        private void OnDisable()
+        {
+            ProceduralWalk.Created -= OnWalkCreated;
+            CombatNetwork.HitReceived -= OnHitReceived;
+            _carrier.Drop(Vector3.zero);
+        }
+
+        private void Update()
+        {
+            _carrier.ClearAim();
+
+            var keyboard = Keyboard.current;
+            var mouse = Mouse.current;
+            if (keyboard == null || mouse == null || !IsActive) return;
+
+            var interactPressed = keyboard.eKey.wasPressedThisFrame;
+
+            if (_carrier.IsHolding)
             {
-                target = avatar.Id;
-                Vector3 flat = Vector3.ProjectOnPlane(dir, Vector3.up).normalized;
-                impulse = kind == AttackKind.Punch
-                    ? flat * punchForce + Vector3.up * 2.5f
-                    : flat * slapForce + transform.right * slapForce * 0.6f + Vector3.up * 1f;
-                break;
+                if (mouse.leftButton.wasPressedThisFrame) Throw();
+                else if (interactPressed || mouse.rightButton.wasPressedThisFrame) _carrier.Drop(_controller.velocity);
+                return;
             }
 
-            var prop = NetProp.Find(h.collider);
-            if (prop != null && !prop.IsHeld)
-            {
-                prop.TakeOwnership(LocalId);
-                float k = kind == AttackKind.Punch ? 1f : 0.6f;
-                prop.Body.AddForceAtPosition(dir * propHitImpulse * k * Mathf.Max(1f, prop.Body.mass * 0.5f), point, ForceMode.Impulse);
-            }
-            break;
+            _carrier.UpdateAim();
+            if (interactPressed && _carrier.TryPickupAimed()) return;
+
+            if (!_attacker.IsReady) return;
+            if (mouse.leftButton.wasPressedThisFrame) Attack(AttackKind.Punch);
+            else if (mouse.rightButton.wasPressedThisFrame) Attack(AttackKind.Slap);
         }
 
-        // Звук: по человеку — удар/лещ, по предмету/стене — тише, мимо — удар по воздуху
-        if (!string.IsNullOrEmpty(target))
-            GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point);
-        else if (hitSomething)
-            GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point, 0.5f, 1.2f);
-        else
-            GameSounds.Play(Sfx.Miss, point, 0.6f);
-
-        SendHit(kind, target, hitSomething ? point : origin, impulse, hitSomething && string.IsNullOrEmpty(target));
-    }
-
-    public static void SendHit(AttackKind kind, string target, Vector3 point, Vector3 impulse, bool hitObject = false)
-    {
-        var nm = GameNet.Instance;
-        if (nm == null || !nm.IsConnected) return;
-        byte[] idBytes = System.Text.Encoding.UTF8.GetBytes(nm.LocalId ?? "");
-        byte[] tgtBytes = System.Text.Encoding.UTF8.GetBytes(target ?? "");
-        var p = new byte[1 + 1 + idBytes.Length + 1 + 1 + tgtBytes.Length + 12 + 12 + 1];
-        p[0] = PacketAttack;
-        int off = IdCodec.Write(p, 1, nm.LocalId);
-        p[off++] = (byte)kind;
-        off = IdCodec.Write(p, off, target);
-        NetProp.WriteVec(p, off, point); off += 12;
-        NetProp.WriteVec(p, off, impulse); off += 12;
-        p[off] = (byte)(hitObject ? 1 : 0);
-        nm.Send(p);
-    }
-
-    void OnPacket(string localId, byte[] data)
-    {
-        if (data.Length < 1) return;
-        if (data[0] == NetProp.PacketSound)
+        private void LateUpdate()
         {
-            if (data.Length < 3) return;
-            string sender = IdCodec.Read(data, 1, out int sOff);
-            if (sender == localId) return;
-            if (data.Length < sOff + 17) return;
-            GameSounds.Play((Sfx)data[sOff], NetProp.ReadVec(data, sOff + 1), BitConverter.ToSingle(data, sOff + 13));
-            return;
+            if (_carrier.UpdateHold() && _hasWalk) _walk.holdUntil = Time.time + HoldAnimationTime;
         }
-        if (data[0] != PacketAttack || data.Length < 3) return;
 
-        string attacker = IdCodec.Read(data, 1, out int off);
-        if (attacker == localId) return;
-        if (data.Length < off + 1) return;
-        var kind = (AttackKind)data[off++];
-        string target = IdCodec.Read(data, off, out off);
-        if (data.Length < off + 25) return;
-        Vector3 point = NetProp.ReadVec(data, off); off += 12;
-        Vector3 impulse = NetProp.ReadVec(data, off); off += 12;
-        bool hitObject = data[off] != 0;
-
-        // Замах у ударившего (для брошенного предмета замаха нет)
-        if (kind != AttackKind.Prop && PositionSync.TryGetRemote(attacker, out _, out var attackerWalk) && attackerWalk != null)
-            attackerWalk.PlayAttack(kind == AttackKind.Slap);
-
-        if (kind == AttackKind.Prop) GameSounds.Play(Sfx.Punch, point, 1f, 0.8f);
-        else if (!string.IsNullOrEmpty(target)) GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point);
-        else if (hitObject) GameSounds.Play(kind == AttackKind.Punch ? Sfx.Punch : Sfx.Slap, point, 0.5f, 1.2f);
-        else GameSounds.Play(Sfx.Miss, point, 0.6f);
-
-        if (!string.IsNullOrEmpty(target) && target == localId)
+        private void Attack(AttackKind kind)
         {
-            // Нас ударили
-            player.AddImpulse(impulse);
-            player.Shake(kind == AttackKind.Slap ? 4f : 6f);
-            if (walk != null) walk.PlayHit();
-            if (held != null) Drop(impulse * 0.5f); // от удара роняем предмет
+            if (_hasWalk) _walk.PlayAttack(kind == AttackKind.Slap);
+            _player.Shake(melee.For(kind).AttackerShake);
+            _attacker.Attack(kind);
         }
-        else if (!string.IsNullOrEmpty(target) && PositionSync.TryGetRemote(target, out _, out var victimWalk) && victimWalk != null)
-            victimWalk.PlayHit();
-    }
 
-    // ---------- Предметы ----------
-
-    NetProp AimProp()
-    {
-        var hits = Physics.RaycastAll(cam.transform.position, cam.transform.forward, pickupDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
-        Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
-        foreach (var h in hits)
+        private void Throw()
         {
-            if (h.collider.transform.IsChildOf(transform)) continue;
-            return NetProp.Find(h.collider);
+            _carrier.Throw();
+            if (_hasWalk) _walk.PlayAttack(false);
         }
-        return null;
-    }
 
-    void Pickup(NetProp prop)
-    {
-        held = prop;
-        heldRotOffset = Quaternion.Inverse(Quaternion.Euler(0, transform.eulerAngles.y, 0)) * prop.transform.rotation;
-        prop.RequestPickup(controller);
-    }
+        private void OnWalkCreated(ProceduralWalk walk)
+        {
+            if (_hasWalk || !walk.transform.IsChildOf(transform)) return;
+            _walk = walk;
+            _hasWalk = true;
+        }
 
-    void Throw()
-    {
-        var prop = held;
-        Drop(cam.transform.forward * throwSpeed + controller.velocity);
-        prop.Body.angularVelocity = UnityEngine.Random.insideUnitSphere * 6f;
-        if (walk != null) walk.PlayAttack(false);
-        GameSounds.Play(Sfx.Whoosh, prop.transform.position, 0.8f, 0.85f);
-        NetProp.BroadcastSound(Sfx.Whoosh, prop.transform.position, 0.8f);
-    }
+        private void OnHitReceived(HitMessage hit)
+        {
+            if (!hit.HasTarget || hit.Target != GameNet.Instance?.LocalId) return;
 
-    void Drop(Vector3 velocity)
-    {
-        var prop = held;
-        held = null;
-        if (prop != null) prop.RequestRelease(velocity, Vector3.zero, controller);
-    }
-
-    void OnGUI()
-    {
-        if (!player.enabled || GameMenu.IsOpen) return;
-        float cx = Screen.width / 2f, cy = Screen.height / 2f;
-        GUI.Label(new Rect(cx - 5, cy - 11, 20, 20), "+");
-        string hint = held != null ? "ЛКМ — бросить, E — положить"
-                    : aimedProp != null ? "E — взять" : null;
-        if (hint != null)
-            GUI.Label(new Rect(cx - 100, cy + 20, 200, 22), hint, new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter });
+            _player.AddImpulse(hit.Impulse);
+            _player.Shake(melee.For(hit.Kind).VictimShake);
+            if (_hasWalk) _walk.PlayHit();
+            _carrier.Drop(hit.Impulse * KnockbackDropFactor);
+        }
     }
 }

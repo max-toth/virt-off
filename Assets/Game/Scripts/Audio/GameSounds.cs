@@ -1,4 +1,5 @@
 ﻿using System;
+using Game.Scripts.Audio.Models;
 using Game.Scripts.Audio.Synthesis;
 using UnityEngine;
 using UnityEngine.Rendering;

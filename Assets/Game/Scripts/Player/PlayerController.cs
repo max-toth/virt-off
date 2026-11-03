@@ -1,3 +1,5 @@
+using Game.Scripts.Combat;
+using Game.Scripts.Combat.Props;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -208,8 +210,7 @@ public class PlayerController : MonoBehaviour
     {
         var rb = hit.rigidbody;
         if (rb == null || hit.moveDirection.y < -0.3f) return; // стоим сверху — не толкаем
-            var prop = NetProp.Find(hit.collider);
-            if (prop != null)
+            if (NetProp.TryFind(hit.collider, out var prop))
             {
                 if (prop.IsHeld) return;
                 prop.TakeOwnership(GameNet.Instance?.LocalId);

@@ -30,15 +30,19 @@ public class NetManager : IDisposable
         recvThread.Start();
     }
 
-    public void Send(byte[] data)
+    public void Send(byte[] data) => Send(data, data.Length);
+
+    public void Send(byte[] data, int length)
     {
         if (serverEndpoint != null)
-            SendRaw(serverEndpoint, data);
+            SendRaw(serverEndpoint, data, length);
     }
 
-    private void SendRaw(IPEndPoint ep, byte[] data)
+    private void SendRaw(IPEndPoint ep, byte[] data) => SendRaw(ep, data, data.Length);
+
+    private void SendRaw(IPEndPoint ep, byte[] data, int length)
     {
-        try { socket.Send(data, data.Length, ep); }
+        try { socket.Send(data, length, ep); }
         catch { }
     }
 

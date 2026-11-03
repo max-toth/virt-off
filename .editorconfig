@@ -1,0 +1,5 @@
+root = true
+
+[*.cs]
+# Вызовы [Conditional]-методов (например NetPropDiagnostics.Log без NETPROP_DEBUG) вырезаются намеренно — не подсвечивать.
+resharper_invocation_is_skipped_highlighting = none

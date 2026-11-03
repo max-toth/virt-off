@@ -1,3 +1,4 @@
+using Game.Scripts.Combat.Props;
 using UnityEngine;
 
 public class NetComponent : MonoBehaviour
@@ -29,7 +30,7 @@ public class NetComponent : MonoBehaviour
     {
         if (manifestSent) return;
         manifestSent = true;
-        NetProp.SendManifest();
+        NetPropSender.SendManifest();
     }
 
     void OnDestroy()

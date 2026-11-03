@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 // Процедурная анимация ходьбы/бега/приседа для моделей Floreswa (скелет Rigify metarig).
@@ -64,8 +65,12 @@ public class ProceduralWalk : MonoBehaviour
     // Отшатнуться от удара
     public void PlayHit() => hitStart = Time.time;
 
+    // Компонент добавляется на модели кодом в разное время; подписчики узнают о нём без опроса GetComponent.
+    public static event Action<ProceduralWalk> Created;
+
     void Awake()
     {
+        Created?.Invoke(this);
         hips = Find("spine");
         spine1 = Find("spine.001");
         thighL = Find("thigh.L"); thighR = Find("thigh.R");

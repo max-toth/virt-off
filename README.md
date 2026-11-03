@@ -69,6 +69,10 @@ Assets/
 │   │   │   ├── NetComponent.cs        — Owns NetManager, connects to server (ServerConfig / -server arg)
 │   │   │   ├── GameNet.cs             — Global access point to the active NetManager
 │   │   │   ├── NetManager.cs          — Custom UDP client
+│   │   │   ├── PacketType.cs          — Packet ids used by combat and props
+│   │   │   ├── PacketWriter.cs        — Allocation-free packet serialization (reused buffer)
+│   │   │   ├── PacketReader.cs        — Bounds-checked packet parsing
+│   │   │   ├── PacketSubscription.cs  — Subscribes a handler to incoming packets once
 │   │   │   ├── MainThreadQueue.cs     — Dispatches network callbacks onto the Unity main thread
 │   │   │   ├── ServerConfig.cs        — ScriptableObject with server address/port
 │   │   │   ├── Lobby.cs               — Lobby state
@@ -80,13 +84,31 @@ Assets/
 │   │   │   ├── RemoteAvatar.cs            — Representation of remote players
 │   │   │   └── ProceduralWalk.cs          — Procedural walk animation
 │   │   ├── Combat/
-│   │   │   ├── PlayerCombat.cs        — Punch, slap, pick up / throw
-│   │   │   └── NetProp.cs             — Networked physics props (chairs, bins…)
+│   │   │   ├── PlayerCombat.cs        — Local player input: routes to attacker / carrier, reacts to being hit
+│   │   │   ├── MeleeAttacker.cs       — Punch / slap: target search, knockback, prop push
+│   │   │   ├── PropCarrier.cs         — Aim, pick up, hold, throw, drop
+│   │   │   ├── CombatHud.cs           — Crosshair and hints
+│   │   │   ├── CombatNetwork.cs       — ATTACK / SOUND packets, HitReceived event
+│   │   │   ├── RemoteCombatPresenter.cs — Other players' hits: animations and sounds
+│   │   │   ├── CombatSounds.cs        — Which sound a hit plays
+│   │   │   ├── Models/                — AttackKind, AttackSettings, MeleeSettings, CarrySettings, HitMessage, SoundMessage
+│   │   │   └── Props/
+│   │   │       ├── NetProp.cs             — Ownership state: pickup, release, grant, sync loop
+│   │   │       ├── NetPropImpact.cs       — Collisions: push props, impact sound, hit remote players
+│   │   │       ├── PropSettleDetector.cs  — When a thrown prop has come to rest
+│   │   │       ├── PropRemoteFollower.cs  — Smoothly follows another client's prop state
+│   │   │       ├── PropHolderCollision.cs — Ignores collisions with the holding player
+│   │   │       ├── NetPropRegistry.cs     — Finds props in the scene, id / server id / collider lookup
+│   │   │       ├── NetPropFactory.cs      — Adds collider, Rigidbody and components to a scene object
+│   │   │       ├── NetPropSender.cs       — Outgoing prop packets
+│   │   │       ├── NetPropReceiver.cs     — Incoming prop packets (single subscription)
+│   │   │       ├── NetPropDiagnostics.cs  — Logs prop events
+│   │   │       └── Models/                — PropStateFlags
 │   │   ├── Voice/
 │   │   │   ├── VoiceManager.cs        — Mic capture, Opus encode, send
 │   │   │   └── VoiceReceiver.cs       — Opus decode, AudioSource playback
 │   │   ├── Audio/
-│   │   │   ├── Sfx.cs                 — Sound ids (sent over the network)
+│   │   │   ├── Models/Sfx.cs          — Sound ids (sent over the network)
 │   │   │   ├── GameSounds.cs          — Plays SFX from a pooled set of AudioSources
 │   │   │   └── Synthesis/             — Fallback sounds when Resources/Sounds/<Sfx>/ is empty
 │   │   │       ├── ISfxSynthesizer.cs — Strategy interface
