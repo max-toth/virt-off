@@ -11,6 +11,7 @@ CrashReport/
 crashlytics-*.plist
 *.csproj
 *.sln
+*.slnx
 *.user
 *.userprefs
 *.unityproj
@@ -30,6 +31,10 @@ crashlytics-*.plist
 modules/
 Sysroot/
 sysroot/
+
+# Logs / crash dumps
+*.log
+mono_crash.*
 
 # macOS
 .DS_Store

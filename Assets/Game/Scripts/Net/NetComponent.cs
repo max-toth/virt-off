@@ -1,17 +1,5 @@
 using UnityEngine;
 
-public static class AppSetup
-{
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    static void Init()
-    {
-        var go = new GameObject("NetManager");
-        Object.DontDestroyOnLoad(go);
-        var nm = go.AddComponent<NetComponent>();
-        nm.StartNet();
-    }
-}
-
 public class NetComponent : MonoBehaviour
 {
     public NetManager Manager { get; private set; }
@@ -49,11 +37,4 @@ public class NetComponent : MonoBehaviour
         if (Manager != null) Manager.OnIdAssigned -= OnIdAssigned;
         Manager?.Dispose();
     }
-}
-
-public static class GameNet
-{
-    private static NetManager instance;
-    public static NetManager Instance => instance;
-    public static void Set(NetManager nm) => instance = nm;
 }

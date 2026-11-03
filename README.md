@@ -26,8 +26,8 @@ A Unity-based virtual office environment with built-in voice communication. Feat
 
 | Scene | Description |
 |-------|-------------|
-| `SampleScene` | Main office scene |
-| `Demo 3 - Office Set 1` | Office with 6 workplaces, created via `Tools/Create Demo 3` |
+| `Demo 3 - Office Set 1` | Main scene (the only one in Build Settings). Office with 6 workplaces, created via `Tools/Create Demo 3`. Opens automatically when the Editor starts (`Tools/Open Main Scene`, Ctrl+Shift+M) |
+| `SampleScene`, `Demo 1/2` | Legacy / template scenes, not included in the build |
 
 ## Controls
 
@@ -58,22 +58,52 @@ Standard standalone build (macOS standalone target).
 
 ## Project Structure
 
+Own content lives in `Assets/Game/`, third-party packs in `Assets/ThirdParty/` (do not edit them — put your own prefabs into `Game/Prefabs`).
+
 ```
 Assets/
-├── Scripts/
-│   ├── Net/
-│   │   ├── NetManager.cs          — Custom UDP networking (server/client)
-│   │   └── AppSetup.cs            — Auto-init net manager on scene load
-│   ├── Voice/
-│   │   ├── VoiceManager.cs        — Mic capture, Opus encode, send
-│   │   └── VoiceReceiver.cs       — Opus decode, AudioSource playback
-│   ├── PlayerController.cs        — FPS movement (WASD + mouse look)
-│   └── NetworkPlayerController.cs — Enables PlayerController after net connect
-├── Editor/
-│   ├── CreatePlayerPrefab.cs      — Tool: create Player prefab
-│   └── CreateDemo3Scene.cs        — Tool: generate office scene
-└── Plugins/
-    └── Concentus.dll              — Opus audio codec
+├── Game/                          — project content
+│   ├── Scripts/
+│   │   ├── Net/
+│   │   │   ├── AppSetup.cs            — Bootstraps networking before the first scene loads
+│   │   │   ├── NetComponent.cs        — Owns NetManager, connects to server (ServerConfig / -server arg)
+│   │   │   ├── GameNet.cs             — Global access point to the active NetManager
+│   │   │   ├── NetManager.cs          — Custom UDP client
+│   │   │   ├── MainThreadQueue.cs     — Dispatches network callbacks onto the Unity main thread
+│   │   │   ├── ServerConfig.cs        — ScriptableObject with server address/port
+│   │   │   ├── Lobby.cs               — Lobby state
+│   │   │   └── IdCodec.cs             — Network id encoding
+│   │   ├── Player/
+│   │   │   ├── PlayerController.cs        — FPS movement (WASD + mouse look)
+│   │   │   ├── NetworkPlayerController.cs — Enables PlayerController after net connect
+│   │   │   ├── PositionSync.cs            — Sends/receives player transforms
+│   │   │   ├── RemoteAvatar.cs            — Representation of remote players
+│   │   │   └── ProceduralWalk.cs          — Procedural walk animation
+│   │   ├── Combat/
+│   │   │   ├── PlayerCombat.cs        — Punch, slap, pick up / throw
+│   │   │   └── NetProp.cs             — Networked physics props (chairs, bins…)
+│   │   ├── Voice/
+│   │   │   ├── VoiceManager.cs        — Mic capture, Opus encode, send
+│   │   │   └── VoiceReceiver.cs       — Opus decode, AudioSource playback
+│   │   ├── Audio/
+│   │   │   └── GameSounds.cs          — Sound effects (loaded from Resources/Sounds)
+│   │   ├── UI/
+│   │   │   └── GameMenu.cs            — Esc menu (lobby, respawn, settings, quit)
+│   │   └── Settings/
+│   │       └── GameSettings.cs        — Player settings
+│   ├── Editor/
+│   │   ├── CreateDemo3Scene.cs        — Tool: generate office scene
+│   │   └── MainSceneLoader.cs         — Opens the main scene on Editor startup
+│   ├── Prefabs/                       — Player, Workplace
+│   ├── Scenes/                        — Demo 3 - Office Set 1 (main)
+│   └── Resources/Sounds/              — SFX clips
+├── ThirdParty/                    — external asset packs
+│   ├── VNB - Office Set/              — low-poly office furniture (VNB-Leo)
+│   ├── Floreswa/                      — low-poly characters (player model: male01_1)
+│   └── LoafbrrAssets/Interiors_A/     — interior kit: walls, floors, stairs (CC0)
+├── Plugins/
+│   └── Concentus.dll                  — Opus audio codec
+└── Settings/                      — URP render pipeline assets
 ```
 
 ## Running
@@ -84,4 +114,4 @@ Assets/
 
 ## License
 
-Internal project. Assets include third-party office models (`VNB - Office Set`, `LoafbrrAssets/Interiors_A`).
+Internal project. Assets include third-party office models (`Assets/ThirdParty/`: VNB - Office Set, Floreswa, LoafbrrAssets/Interiors_A).

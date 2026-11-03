@@ -87,7 +87,9 @@ public class PlayerCombat : MonoBehaviour
     void LateUpdate()
     {
         if (held == null) return;
-        if (!held.IsServerOwned) { held = null; return; } // предмет отобрали
+        // IsHeld остаётся true и пока ждём PROP_GRANT (оптимистичный захват), и после него;
+        // сбрасывается при тайм-ауте, отказе сервера или если предмет забрал другой игрок.
+        if (!held.IsHeld) { held = null; return; } // предмет отобрали
         Vector3 pos = cam.transform.position + cam.transform.forward * holdDistance - Vector3.up * 0.35f;
         Quaternion rot = Quaternion.Euler(0, transform.eulerAngles.y, 0) * heldRotOffset;
         held.MoveHeld(pos, rot);

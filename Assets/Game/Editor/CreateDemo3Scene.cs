@@ -7,7 +7,13 @@ public class CreateDemo3Scene
     [MenuItem("Tools/Create Demo 3 - Office Set 1")]
     static void Execute()
     {
-        string dstScenePath = "Assets/VNB - Office Set/Scenes/Demo 3 - Office Set 1.unity";
+        string dstScenePath = MainSceneLoader.MainScenePath;
+
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(dstScenePath) != null &&
+            !EditorUtility.DisplayDialog("Create Demo 3",
+                $"Сцена {dstScenePath} уже существует и будет перезаписана заново сгенерированной. Продолжить?",
+                "Перезаписать", "Отмена"))
+            return;
 
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             return;
@@ -15,7 +21,7 @@ public class CreateDemo3Scene
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         var floor0 = new GameObject("Floor 0").transform;
-        var wsPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/VNB - Office Set/Prefabs/Workplace.prefab");
+        var wsPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Game/Prefabs/Workplace.prefab");
 
         var positions = new Vector3[] {
             new Vector3(-6f, 0, -3f),
