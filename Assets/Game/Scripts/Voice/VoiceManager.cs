@@ -11,11 +11,19 @@ namespace Game.Scripts.Voice
     public class VoiceManager : MonoBehaviour
     {
         private const float VoiceVolumeStep = 0.1f;
+        private const float FrameSeconds = (float)VoiceFormat.FrameSize / VoiceFormat.SampleRate;
+
+        [Tooltip("Пиковый уровень микрофона (с усилением), с которого кадр считается речью и отправляется")]
+        [Range(0f, 0.2f)]
+        [SerializeField] private float activationThreshold = 0.02f;
+        [Tooltip("Сколько секунд после речи ещё отправлять, чтобы не обрезать окончания слов")]
+        [SerializeField] private float hangoverSeconds = 0.3f;
 
         private readonly float[] _frame = new float[VoiceFormat.FrameSize];
         private MicrophoneCapture _capture;
         private VoiceEncoder _encoder;
         private MicTest _micTest;
+        private VoiceActivityGate _gate;
         private VoiceNetwork _network;
         private GameSettings _settings;
         private GameplayInput _input;
@@ -28,7 +36,8 @@ namespace Game.Scripts.Voice
         public bool IsReady => _capture.IsStarted;
         public bool IsTesting => _micTest.IsRecording;
         public bool IsPlayingTest => _micTest.IsPlaying;
-        public bool IsTransmitting => !_settings.MicMuted && _capture.IsRecording;
+        /// <summary>Идёт отправка: микрофон включён и сейчас звучит речь.</summary>
+        public bool IsTransmitting => !_settings.MicMuted && _capture.IsRecording && _gate.IsOpen;
         public string MicDevice => _capture.Device;
 
         [Inject]
@@ -39,6 +48,7 @@ namespace Game.Scripts.Voice
             _input = input;
             _capture = new MicrophoneCapture(settings);
             _encoder = new VoiceEncoder();
+            _gate = new VoiceActivityGate(activationThreshold, Mathf.CeilToInt(hangoverSeconds / FrameSeconds));
         }
 
         public void StartMicTest()
@@ -103,12 +113,16 @@ namespace Game.Scripts.Voice
         {
             if (_settings.MicMuted || !_network.IsConnected)
             {
+                _gate.Close();
                 _capture.SkipToNow();
                 return;
             }
 
+            // Тишина не отправляется: собеседникам не приходится её декодировать, трафик — только пока говорят.
             while (_capture.TryRead(_frame))
             {
+                if (!_gate.ShouldSend(_frame, _settings.MicGain)) continue;
+
                 var length = _encoder.Encode(_frame, _settings.MicGain);
                 _network.Send(_encoder.Output, length);
             }

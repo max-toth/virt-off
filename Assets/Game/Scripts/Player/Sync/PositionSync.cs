@@ -10,6 +10,8 @@ namespace Game.Scripts.Player.Sync
     public class PositionSync : MonoBehaviour
     {
         [SerializeField] private float sendInterval = 0.05f;
+        [Tooltip("Стоя на месте позиция отправляется не чаще: этого хватает, чтобы другие видели игрока в лобби")]
+        [SerializeField] private float keepAliveInterval = 1f;
         [Tooltip("Модели для чужих игроков (выбирается по ID). Если пусто — копируется модель своего игрока")]
         [SerializeField] private GameObject[] avatarPrefabs = Array.Empty<GameObject>();
         [Tooltip("Масштаб моделей из avatarPrefabs")]
@@ -22,6 +24,7 @@ namespace Game.Scripts.Player.Sync
         private Lobby _lobby;
         private RemotePlayers _remotePlayers;
         private RemoteAvatarFactory _avatarFactory;
+        private PositionSendFilter _sendFilter;
         private float _sendTimer;
 
         [Inject]
@@ -32,7 +35,11 @@ namespace Game.Scripts.Player.Sync
             _remotePlayers = remotePlayers;
         }
 
-        private void Awake() => _player = GetComponent<PlayerController>();
+        private void Awake()
+        {
+            _player = GetComponent<PlayerController>();
+            _sendFilter = new PositionSendFilter(keepAliveInterval);
+        }
 
         private void Start()
         {
@@ -63,7 +70,10 @@ namespace Game.Scripts.Player.Sync
             if (_sendTimer < sendInterval) return;
 
             _sendTimer = 0f;
-            _network.Send(transform.position, transform.eulerAngles.y, _player.IsCrouching);
+            var position = transform.position;
+            var yaw = transform.eulerAngles.y;
+            if (_sendFilter.ShouldSend(position, yaw, _player.IsCrouching, Time.unscaledTime))
+                _network.Send(position, yaw, _player.IsCrouching);
         }
 
         private void OnPositionReceived(PositionMessage message)

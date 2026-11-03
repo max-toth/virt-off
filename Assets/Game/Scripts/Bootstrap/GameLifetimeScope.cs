@@ -11,6 +11,7 @@ using Game.Scripts.Settings;
 using Game.Scripts.UI.Hud;
 using Game.Scripts.UI.Menu;
 using Game.Scripts.Voice;
+using UnityEngine;
 using VContainer;
 using VContainer.Unity;
 
@@ -47,9 +48,17 @@ namespace Game.Scripts.Bootstrap
             builder.RegisterComponentInHierarchy<PositionSync>();
             builder.RegisterComponentInHierarchy<VoiceManager>();
             builder.RegisterComponentInHierarchy<VoiceReceiver>();
-            builder.RegisterComponentInHierarchy<GameMenu>();
-            builder.RegisterComponentInHierarchy<HudPresenter>();
-            builder.RegisterComponentInHierarchy<VoiceDebugPresenter>();
+
+            RegisterIfPresent<GameMenu>(builder);
+            RegisterIfPresent<HudPresenter>(builder);
+            RegisterIfPresent<VoiceDebugPresenter>(builder);
+        }
+
+        // GameUI есть не в каждой сцене (в Demo 1 его нет), а от интерфейса ничего не зависит.
+        private static void RegisterIfPresent<T>(IContainerBuilder builder) where T : MonoBehaviour
+        {
+            var component = FindAnyObjectByType<T>(FindObjectsInactive.Include);
+            if (component != null) builder.RegisterComponent(component);
         }
     }
 }
