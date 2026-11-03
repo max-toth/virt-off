@@ -1,0 +1,51 @@
+.hud {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.hud-text {
+    -unity-text-outline-width: 1px;
+    -unity-text-outline-color: rgba(0, 0, 0, 0.8);
+}
+
+.hud__crosshair {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    font-size: 20px;
+}
+
+.hud__hint {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% 20px;
+    -unity-text-align: upper-center;
+}
+
+.hud__menu-hint {
+    position: absolute;
+    left: 10px;
+    bottom: 6px;
+    color: var(--color-text-muted);
+}
+
+.voice-panel {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+}
+
+.voice-panel__line {
+    height: 22px;
+}
+
+.voice-panel__waveform {
+    width: 200px;
+    height: 60px;
+    margin-top: 4px;
+}

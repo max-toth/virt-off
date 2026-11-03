@@ -1,5 +1,6 @@
 using Game.Scripts.Net;
 using Game.Scripts.Settings;
+using Game.Scripts.UI.Menu;
 using Game.Scripts.Voice.Capture;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -16,6 +17,8 @@ namespace Game.Scripts.Voice
         private VoiceEncoder _encoder;
         private MicTest _micTest;
         private NetManager _pendingManager;
+
+        private static bool _hasInstance;
 
         public static VoiceManager Instance { get; private set; }
 
@@ -36,15 +39,21 @@ namespace Game.Scripts.Voice
             if (IsTesting) _micTest.Finish(GameSettings.MicGain);
         }
 
+        public static bool TryGetInstance(out VoiceManager instance)
+        {
+            instance = Instance;
+            return _hasInstance;
+        }
+
         public bool TryReadLatestSamples(float[] destination) => _capture.TryReadLatest(destination);
 
         private void Awake()
         {
             Instance = this;
+            _hasInstance = true;
             _capture = new MicrophoneCapture();
             _encoder = new VoiceEncoder();
             _micTest = new MicTest(gameObject.AddComponent<AudioSource>());
-            if (!TryGetComponent(out VoiceDebugHud _)) gameObject.AddComponent<VoiceDebugHud>();
         }
 
         private void Start()
@@ -72,7 +81,9 @@ namespace Game.Scripts.Voice
             GameSettings.MicDeviceChanged -= RestartMic;
             UnsubscribePending();
             _micTest.Dispose();
-            if (Instance == this) Instance = null;
+            if (Instance != this) return;
+            Instance = null;
+            _hasInstance = false;
         }
 
         private void Update()

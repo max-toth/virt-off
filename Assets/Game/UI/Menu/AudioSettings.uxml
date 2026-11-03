@@ -1,0 +1,37 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="PauseMenu.uss" />
+    <ui:ScrollView class="tab-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden">
+        <ui:VisualElement class="row">
+            <ui:DropdownField name="micDropdown" label="Микрофон" class="row__field" />
+            <ui:Button name="micRefreshButton" text="Обновить список" />
+        </ui:VisualElement>
+        <ui:Label name="noMicLabel" class="hint hidden" text="Микрофоны не найдены" />
+        <ui:VisualElement class="row">
+            <ui:Label class="row__label" text="Уровень" />
+            <ui:ProgressBar name="micLevelBar" class="level-meter" low-value="0" high-value="1" />
+        </ui:VisualElement>
+        <ui:VisualElement class="row">
+            <ui:Slider name="micGainSlider" label="Усиление микрофона" class="row__field" low-value="0" high-value="3" />
+            <ui:Label name="micGainValue" class="row__value" />
+        </ui:VisualElement>
+        <ui:VisualElement class="row">
+            <ui:Toggle name="micMutedToggle" text="Выключить микрофон (M)" class="row__field" />
+            <ui:Button name="micTestButton" text="Проверить микрофон" />
+        </ui:VisualElement>
+        <ui:Label name="micTestHint" class="hint" text="Проверка доступна после подключения к серверу" />
+        <ui:VisualElement class="row">
+            <ui:Label class="row__label" text="Наушники / динамики" />
+            <ui:Label class="row__field" text="Системное устройство по умолчанию" />
+            <ui:Button name="osSoundButton" text="Настройки звука ОС" />
+        </ui:VisualElement>
+        <ui:VisualElement class="row">
+            <ui:Slider name="masterVolumeSlider" label="Общая громкость" class="row__field" low-value="0" high-value="1" />
+            <ui:Label name="masterVolumeValue" class="row__value" />
+        </ui:VisualElement>
+        <ui:VisualElement class="row">
+            <ui:Slider name="voiceVolumeSlider" label="Громкость голосов" class="row__field" low-value="0" high-value="2" />
+            <ui:Label name="voiceVolumeValue" class="row__value" />
+        </ui:VisualElement>
+    </ui:ScrollView>
+</ui:UXML>

@@ -1,5 +1,6 @@
 using Game.Scripts.Combat;
 using Game.Scripts.Settings;
+using Game.Scripts.UI.Menu;
 using UnityEngine;
 
 namespace Game.Scripts.Player

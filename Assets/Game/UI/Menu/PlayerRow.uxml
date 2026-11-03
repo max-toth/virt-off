@@ -1,0 +1,10 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="PauseMenu.uss" />
+    <ui:VisualElement class="player-row">
+        <ui:VisualElement name="dot" class="player-row__dot" />
+        <ui:Label name="nameLabel" class="player-row__name" />
+        <ui:Label name="stateLabel" class="player-row__state" />
+        <ui:Button name="actionButton" class="player-row__button" />
+    </ui:VisualElement>
+</ui:UXML>

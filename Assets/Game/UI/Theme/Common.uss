@@ -1,0 +1,145 @@
+:root {
+    --color-text: rgb(232, 234, 238);
+    --color-text-muted: rgb(150, 156, 168);
+    --color-surface: rgb(28, 32, 40);
+    --color-surface-raised: rgb(46, 52, 64);
+    --color-surface-hover: rgb(62, 70, 86);
+    --color-border: rgb(72, 80, 98);
+    --color-accent: rgb(72, 132, 226);
+    --color-danger: rgb(214, 72, 72);
+    --color-warning: rgb(230, 200, 60);
+    --color-speaking: rgb(77, 230, 77);
+    --color-silent: rgb(115, 115, 115);
+    font-size: 14px;
+}
+
+.unity-text-element {
+    color: var(--color-text);
+}
+
+.unity-base-field__label {
+    min-width: 150px;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Кнопки */
+
+.unity-button {
+    border-width: 0;
+    border-radius: 4px;
+    background-color: var(--color-surface-raised);
+    transition-duration: 0.1s;
+}
+
+.unity-button:hover:enabled {
+    background-color: var(--color-surface-hover);
+}
+
+.unity-button:active:enabled {
+    background-color: var(--color-border);
+}
+
+.unity-button:focus {
+    border-color: var(--color-border);
+}
+
+/* Выпадающий список: поле */
+
+.unity-base-popup-field__input {
+    border-width: 1px;
+    border-color: var(--color-border);
+    border-radius: 4px;
+    background-color: var(--color-surface-raised);
+}
+
+.unity-base-popup-field__input:hover:enabled,
+.unity-base-popup-field__input:focus,
+.unity-base-popup-field:focus > .unity-base-popup-field__input,
+.unity-base-popup-field:hover:enabled > .unity-base-popup-field__input,
+.unity-base-field:hover:enabled > .unity-base-popup-field__input {
+    border-color: var(--color-text-muted);
+    background-color: var(--color-surface-raised);
+}
+
+.unity-base-popup-field__arrow {
+    -unity-background-image-tint-color: var(--color-text-muted);
+}
+
+/* Выпадающий список: всплывающее меню */
+
+.unity-base-dropdown__container-outer {
+    border-width: 1px;
+    border-color: var(--color-border);
+    border-radius: 4px;
+    background-color: var(--color-surface);
+}
+
+.unity-base-dropdown__container-inner {
+    background-color: var(--color-surface);
+}
+
+.unity-base-dropdown__item:hover:enabled,
+.unity-base-dropdown__item:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.unity-base-dropdown__checkmark {
+    -unity-background-image-tint-color: var(--color-text);
+}
+
+/* Слайдер */
+
+.unity-base-slider__tracker {
+    border-color: var(--color-border);
+    background-color: var(--color-surface-raised);
+}
+
+.unity-base-slider__dragger,
+.unity-base-slider:hover:enabled .unity-base-slider__dragger,
+.unity-base-slider:focus .unity-base-slider__dragger {
+    border-color: var(--color-accent);
+    background-color: var(--color-accent);
+}
+
+/* Переключатель */
+
+.unity-toggle__checkmark,
+.unity-toggle:hover:enabled > .unity-toggle__input > .unity-toggle__checkmark,
+.unity-toggle:focus > .unity-toggle__input > .unity-toggle__checkmark {
+    border-color: var(--color-border);
+    background-color: var(--color-surface-raised);
+    -unity-background-image-tint-color: var(--color-text);
+}
+
+/* Полоса уровня */
+
+.unity-progress-bar__background {
+    border-width: 0;
+    border-radius: 3px;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Полоса прокрутки */
+
+.unity-scroller {
+    border-width: 0;
+    background-color: transparent;
+}
+
+.unity-scroller .unity-repeat-button {
+    display: none;
+}
+
+.unity-scroller .unity-base-slider__tracker {
+    border-width: 0;
+    background-color: transparent;
+}
+
+.unity-scroller .unity-base-slider__dragger {
+    border-width: 0;
+    border-radius: 4px;
+    background-color: var(--color-surface-hover);
+}

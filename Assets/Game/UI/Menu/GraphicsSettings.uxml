@@ -1,0 +1,17 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="PauseMenu.uss" />
+    <ui:ScrollView class="tab-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden">
+        <ui:DropdownField name="screenModeDropdown" label="Режим экрана" choices="В окне,Полный экран" />
+        <ui:VisualElement class="row">
+            <ui:DropdownField name="resolutionDropdown" label="Разрешение" class="row__field" />
+            <ui:Button name="applyResolutionButton" text="Применить" />
+        </ui:VisualElement>
+        <ui:DropdownField name="qualityDropdown" label="Качество" />
+        <ui:Toggle name="vsyncToggle" text="Вертикальная синхронизация" />
+        <ui:VisualElement class="row">
+            <ui:Slider name="fieldOfViewSlider" label="Поле зрения" class="row__field" low-value="50" high-value="100" />
+            <ui:Label name="fieldOfViewValue" class="row__value" />
+        </ui:VisualElement>
+    </ui:ScrollView>
+</ui:UXML>

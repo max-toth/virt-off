@@ -44,7 +44,7 @@ A Unity-based virtual office environment with built-in voice communication. Feat
 | Esc | Menu (lobby, respawn, settings, quit) |
 | M | Toggle microphone mute |
 
-A waveform visualizer and connection status are displayed in the HUD (Unity GUI).
+A waveform visualizer and connection status are displayed in the HUD (UI Toolkit).
 
 ## Building
 
@@ -101,7 +101,6 @@ Assets/
 │   │   │   ├── PlayerCombat.cs        — Local player input: routes to attacker / carrier, reacts to being hit
 │   │   │   ├── MeleeAttacker.cs       — Punch / slap: target search, knockback, prop push
 │   │   │   ├── PropCarrier.cs         — Aim, pick up, hold, throw, drop
-│   │   │   ├── CombatHud.cs           — Crosshair and hints
 │   │   │   ├── CombatNetwork.cs       — ATTACK / SOUND packets, HitReceived event
 │   │   │   ├── RemoteCombatPresenter.cs — Other players' hits: animations and sounds
 │   │   │   ├── CombatSounds.cs        — Which sound a hit plays
@@ -121,7 +120,6 @@ Assets/
 │   │   ├── Voice/
 │   │   │   ├── VoiceManager.cs        — Own voice: mic → Opus → server, hotkeys M / R / U / J
 │   │   │   ├── VoiceReceiver.cs       — Other players' voice: one VoiceStream per speaker
-│   │   │   ├── VoiceDebugHud.cs       — Debug overlay: id, mic, speakers, status, waveform
 │   │   │   ├── VoiceNetwork.cs        — VOICE packet
 │   │   │   ├── VoiceFormat.cs         — 16 kHz mono, 640-sample (40 ms) frames
 │   │   │   ├── VoiceDiagnostics.cs    — Voice logs, enabled by VOICE_DEBUG
@@ -136,15 +134,30 @@ Assets/
 │   │   │       ├── *Synthesizer.cs    — Punch / Slap / Whoosh / Impact strategies
 │   │   │       ├── SfxSynthesizerFactory.cs — Picks a strategy for an Sfx
 │   │   │       └── ProceduralClip.cs  — Renders a strategy into an AudioClip
-│   │   ├── UI/
-│   │   │   └── GameMenu.cs            — Esc menu (lobby, respawn, settings, quit)
+│   │   ├── UI/                    — Presenters (MVP): logic only, layout lives in Assets/Game/UI
+│   │   │   ├── UiClasses.cs           — Shared USS class names (hidden)
+│   │   │   ├── Menu/
+│   │   │   │   ├── GameMenu.cs            — Esc menu: pages, open/close, OpenChanged event
+│   │   │   │   ├── LobbyListPresenter.cs  — Players in the lobby, mute buttons
+│   │   │   │   ├── PlayerRowView.cs       — One row of the player list
+│   │   │   │   ├── SettingsPresenter.cs   — Tabs, reset, back
+│   │   │   │   ├── AudioSettingsPresenter.cs, ControlsSettingsPresenter.cs, GraphicsSettingsPresenter.cs
+│   │   │   │   └── SliderBinding.cs       — Slider + value label
+│   │   │   └── Hud/
+│   │   │       ├── HudPresenter.cs        — Crosshair, carry hint, "Esc — menu" hint
+│   │   │       └── VoiceDebugPresenter.cs — Voice debug panel with mic waveform
 │   │   └── Settings/
 │   │       ├── GameSettings.cs        — Client settings (mic, volume, mouse, video), MicDeviceChanged event
 │   │       └── GameSettingsStorage.cs — PlayerPrefs persistence
 │   ├── Editor/
 │   │   ├── CreateDemo3Scene.cs        — Tool: generate office scene
+│   │   ├── GameUiSetup.cs             — Tool: Tools/UI/Setup Game UI (PanelSettings, GameUI prefab, adds it to the main scene)
 │   │   └── MainSceneLoader.cs         — Opens the main scene on Editor startup
 │   ├── Prefabs/                       — Player, Workplace
+│   ├── UI/                            — UI Toolkit assets: UXML layouts, USS styles, theme, PanelSettings, GameUI prefab
+│   │   ├── Theme/                     — GameTheme.tss, Common.uss (colors, base controls)
+│   │   ├── Menu/                      — PauseMenu.uxml/.uss, PlayerRow.uxml
+│   │   └── Hud/                       — Hud.uxml/.uss
 │   ├── Scenes/                        — Demo 3 - Office Set 1 (main)
 │   └── Resources/                     — ServerConfig.asset, Sounds/<Sfx>/ (SFX clips, one folder per sound)
 ├── ThirdParty/                    — external asset packs

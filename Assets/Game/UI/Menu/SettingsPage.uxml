@@ -1,0 +1,21 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Template name="AudioSettings" src="AudioSettings.uxml" />
+    <ui:Template name="ControlsSettings" src="ControlsSettings.uxml" />
+    <ui:Template name="GraphicsSettings" src="GraphicsSettings.uxml" />
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="PauseMenu.uss" />
+    <ui:VisualElement class="page__content">
+        <ui:VisualElement class="tabs">
+            <ui:Button name="audioTabButton" class="tab" text="Звук" />
+            <ui:Button name="controlsTabButton" class="tab" text="Управление" />
+            <ui:Button name="graphicsTabButton" class="tab" text="Графика" />
+        </ui:VisualElement>
+        <ui:Instance template="AudioSettings" name="audioTab" class="tab-content" />
+        <ui:Instance template="ControlsSettings" name="controlsTab" class="tab-content hidden" />
+        <ui:Instance template="GraphicsSettings" name="graphicsTab" class="tab-content hidden" />
+        <ui:VisualElement class="footer">
+            <ui:Button name="resetSettingsButton" class="footer__button" text="Сбросить по умолчанию" />
+            <ui:Button name="backButton" class="footer__button" text="Назад" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,18 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="Hud.uss" />
+    <ui:VisualElement name="hudRoot" class="hud" picking-mode="Ignore">
+        <ui:Label name="crosshair" class="hud-text hud__crosshair hidden" text="+" picking-mode="Ignore" />
+        <ui:Label name="hintLabel" class="hud-text hud__hint hidden" picking-mode="Ignore" />
+        <ui:Label name="menuHint" class="hud-text hud__menu-hint" text="Esc — меню" picking-mode="Ignore" />
+        <ui:VisualElement name="voicePanel" class="voice-panel hidden" picking-mode="Ignore">
+            <ui:Label name="voiceIdLabel" class="hud-text voice-panel__line" picking-mode="Ignore" />
+            <ui:Label name="voiceMicLabel" class="hud-text voice-panel__line" picking-mode="Ignore" />
+            <ui:Label name="voiceSpeakersLabel" class="hud-text voice-panel__line" picking-mode="Ignore" />
+            <ui:Label name="voiceStatusLabel" class="hud-text voice-panel__line" picking-mode="Ignore" />
+            <ui:Label name="voiceVolumeLabel" class="hud-text voice-panel__line" picking-mode="Ignore" />
+            <ui:Label class="hud-text voice-panel__line" text="R=test mic  M=mute" picking-mode="Ignore" />
+            <ui:Image name="voiceWaveform" class="voice-panel__waveform" picking-mode="Ignore" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

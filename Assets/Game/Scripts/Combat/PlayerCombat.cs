@@ -2,6 +2,7 @@
 using Game.Scripts.Net;
 using Game.Scripts.Player;
 using Game.Scripts.Player.Animation;
+using Game.Scripts.UI.Menu;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -9,7 +10,7 @@ namespace Game.Scripts.Combat
 {
     // Ввод драки своего игрока: ЛКМ — удар, ПКМ — лещ, E — взять предмет;
     // с предметом в руках ЛКМ — бросить, E/ПКМ — положить.
-    [RequireComponent(typeof(PlayerController), typeof(CombatHud))]
+    [RequireComponent(typeof(PlayerController))]
     public class PlayerCombat : MonoBehaviour
     {
         private const float HoldAnimationTime = 0.1f;

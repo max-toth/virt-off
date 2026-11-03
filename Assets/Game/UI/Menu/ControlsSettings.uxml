@@ -1,0 +1,12 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="PauseMenu.uss" />
+    <ui:ScrollView class="tab-scroll" mode="Vertical" horizontal-scroller-visibility="Hidden">
+        <ui:VisualElement class="row">
+            <ui:Slider name="sensitivitySlider" label="Чувствительность мыши" class="row__field" low-value="0.1" high-value="30" />
+            <ui:Label name="sensitivityValue" class="row__value" />
+        </ui:VisualElement>
+        <ui:Toggle name="invertYToggle" text="Инвертировать ось Y" />
+        <ui:Label class="keys" text="Клавиши:&#10;WASD — движение&#10;Shift — бег&#10;Пробел — прыжок&#10;Ctrl (удерживать) — присесть&#10;Мышь — обзор&#10;ЛКМ — удар кулаком&#10;ПКМ — лещ&#10;E — взять предмет (стул и т.п.), ЛКМ — бросить&#10;M — вкл/выкл микрофон&#10;R (удерживать) — проверка микрофона&#10;U / J — громкость голосов&#10;Esc — меню" />
+    </ui:ScrollView>
+</ui:UXML>

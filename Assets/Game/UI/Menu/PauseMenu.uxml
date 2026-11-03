@@ -1,0 +1,13 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Template name="MainPage" src="MainPage.uxml" />
+    <ui:Template name="SettingsPage" src="SettingsPage.uxml" />
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="PauseMenu.uss" />
+    <ui:VisualElement name="menuRoot" class="overlay">
+        <ui:VisualElement class="window">
+            <ui:Label name="titleLabel" class="window__title" text="Меню" />
+            <ui:Instance template="MainPage" name="mainPage" class="page" />
+            <ui:Instance template="SettingsPage" name="settingsPage" class="page hidden" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
