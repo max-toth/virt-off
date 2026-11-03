@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Game.Editor
 {
@@ -31,7 +32,7 @@ namespace Game.Editor
         private static void OpenMainScene()
         {
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-            if (EditorSceneManager.GetActiveScene().path == MainScenePath) return;
+            if (SceneManager.GetActiveScene().path == MainScenePath) return;
 
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainScenePath) == null)
             {

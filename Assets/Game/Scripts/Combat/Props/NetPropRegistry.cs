@@ -7,7 +7,6 @@ using Object = UnityEngine.Object;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Находит на сцене предметы по ключевым словам в имени и раздаёт им локальные id.
     // Порядок детерминирован (по позиции), чтобы id совпадали у всех клиентов.
     public static class NetPropRegistry
     {
@@ -82,7 +81,6 @@ namespace Game.Scripts.Combat.Props
         private static List<Transform> FindCandidates() =>
             Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude).Where(IsCandidate).ToList();
 
-        // Объект с ключевым словом в имени, с мешем, не часть игрока и не вложен в другой такой же предмет.
         private static bool IsCandidate(Transform candidate) =>
             MatchesKeyword(candidate)
             && candidate.GetComponentInParent<PlayerController>() == null
@@ -92,12 +90,7 @@ namespace Game.Scripts.Combat.Props
         private static bool MatchesKeyword(Transform candidate)
         {
             var name = candidate.name.ToLowerInvariant().Replace(" ", string.Empty).Replace("_", string.Empty);
-            foreach (var keyword in Keywords)
-            {
-                if (name.Contains(keyword)) return true;
-            }
-
-            return false;
+            return Keywords.Any(keyword => name.Contains(keyword));
         }
 
         private static int CompareByPosition(Transform a, Transform b)

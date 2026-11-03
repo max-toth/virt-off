@@ -7,7 +7,6 @@ using UnityEngine.UIElements;
 
 namespace Game.Editor
 {
-    // Создаёт ассеты интерфейса (PanelSettings, префаб GameUI) и ставит префаб в основную сцену.
     // Повторный запуск обновляет существующие ассеты.
     public static class GameUiSetup
     {

@@ -4,7 +4,6 @@ using Object = UnityEngine.Object;
 
 namespace Game.Scripts.Voice.Capture
 {
-    // Проверка микрофона: запись до 5 секунд и воспроизведение себе.
     public sealed class MicTest : IDisposable
     {
         private const int MaxSeconds = 5;

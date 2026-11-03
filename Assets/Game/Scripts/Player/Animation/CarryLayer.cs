@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Animation
 {
-    // Несёт предмет: обе руки вперёд.
     public sealed class CarryLayer : IPoseLayer
     {
         private const float BlendSpeed = 6f;

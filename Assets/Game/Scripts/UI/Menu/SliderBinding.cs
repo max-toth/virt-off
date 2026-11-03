@@ -3,7 +3,6 @@ using UnityEngine.UIElements;
 
 namespace Game.Scripts.UI.Menu
 {
-    // Слайдер настройки и подпись с его значением.
     internal sealed class SliderBinding
     {
         private readonly Slider _slider;

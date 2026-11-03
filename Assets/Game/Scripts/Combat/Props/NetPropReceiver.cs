@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Единая подписка на входящие пакеты предметов (а не по подписке на каждый NetProp).
     public static class NetPropReceiver
     {
         private const byte ReleaseEventFreeFlag = 1;

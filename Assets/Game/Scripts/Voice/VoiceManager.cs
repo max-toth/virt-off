@@ -7,7 +7,6 @@ using UnityEngine.InputSystem;
 
 namespace Game.Scripts.Voice
 {
-    // Свой голос: микрофон → Opus → сервер. Горячие клавиши: M — микрофон, R — проверка, U/J — громкость голосов.
     public class VoiceManager : MonoBehaviour
     {
         private const float VoiceVolumeStep = 0.1f;
@@ -18,9 +17,8 @@ namespace Game.Scripts.Voice
         private MicTest _micTest;
         private NetManager _pendingManager;
 
+        private static VoiceManager _instance;
         private static bool _hasInstance;
-
-        public static VoiceManager Instance { get; private set; }
 
         public float MicLevel => _capture.Level;
         public bool IsReady => _capture.IsStarted;
@@ -41,7 +39,7 @@ namespace Game.Scripts.Voice
 
         public static bool TryGetInstance(out VoiceManager instance)
         {
-            instance = Instance;
+            instance = _instance;
             return _hasInstance;
         }
 
@@ -49,7 +47,7 @@ namespace Game.Scripts.Voice
 
         private void Awake()
         {
-            Instance = this;
+            _instance = this;
             _hasInstance = true;
             _capture = new MicrophoneCapture();
             _encoder = new VoiceEncoder();
@@ -81,8 +79,8 @@ namespace Game.Scripts.Voice
             GameSettings.MicDeviceChanged -= RestartMic;
             UnsubscribePending();
             _micTest.Dispose();
-            if (Instance != this) return;
-            Instance = null;
+            if (_instance != this) return;
+            _instance = null;
             _hasInstance = false;
         }
 

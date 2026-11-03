@@ -6,7 +6,6 @@ using Object = UnityEngine.Object;
 
 namespace Game.Scripts.Voice.Playback
 {
-    // Голос одного игрока: декодирование Opus в кольцевой буфер, который читает аудиопоток.
     public sealed class VoiceStream : IDisposable
     {
         private const int BufferLength = 48000;

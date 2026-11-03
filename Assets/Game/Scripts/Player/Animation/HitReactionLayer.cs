@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Animation
 {
-    // Отшатывание от удара: корпус назад.
     public sealed class HitReactionLayer : IPoseLayer
     {
         private const float Duration = 0.4f;

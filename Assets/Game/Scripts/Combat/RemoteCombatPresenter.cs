@@ -4,7 +4,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat
 {
-    // Как чужой удар выглядит и звучит у нас: замах ударившего, звук, вздрагивание жертвы.
     public static class RemoteCombatPresenter
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]

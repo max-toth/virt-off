@@ -20,7 +20,7 @@ namespace Game.Scripts.Player.Sync
         public static bool TryFind(Collider collider, out RemoteAvatar avatar) => ByCollider.TryGetValue(collider, out avatar);
 
         // Капсула и кинематический Rigidbody: в игрока можно попасть, предметы от него отскакивают.
-        public static RemoteAvatar Attach(GameObject target, string id)
+        public static void Attach(GameObject target, string id)
         {
             var avatar = target.AddComponent<RemoteAvatar>();
             avatar.Id = id;
@@ -36,7 +36,6 @@ namespace Game.Scripts.Player.Sync
             body.interpolation = RigidbodyInterpolation.None;
 
             avatar.RegisterColliders();
-            return avatar;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

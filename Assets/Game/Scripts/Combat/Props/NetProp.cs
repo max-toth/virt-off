@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Состояние владения физическим предметом: кто его держит/двигает и как синхронизировать с сервером.
     [RequireComponent(typeof(Rigidbody))]
     public class NetProp : MonoBehaviour
     {

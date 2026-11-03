@@ -6,7 +6,6 @@ using UnityEngine.UIElements;
 
 namespace Game.Scripts.UI.Hud
 {
-    // Прицел, подсказка про предмет в руках и подсказка про меню.
     [RequireComponent(typeof(UIDocument))]
     public class HudPresenter : MonoBehaviour
     {

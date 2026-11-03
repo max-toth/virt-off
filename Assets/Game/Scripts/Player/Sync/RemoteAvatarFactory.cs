@@ -6,7 +6,6 @@ using Object = UnityEngine.Object;
 
 namespace Game.Scripts.Player.Sync
 {
-    // Модель чужого игрока: префаб по id, иначе копия своей модели, иначе капсула.
     public sealed class RemoteAvatarFactory : IDisposable
     {
         private const string TemplateName = "RemoteAvatarTemplate";
@@ -81,14 +80,11 @@ namespace Game.Scripts.Player.Sync
                 return avatar;
             }
 
-            if (_hasTemplate)
-            {
-                var avatar = Object.Instantiate(_template, position, rotation);
-                avatar.SetActive(true);
-                return avatar;
-            }
+            if (!_hasTemplate) return CreatePlaceholder(position, rotation);
 
-            return CreatePlaceholder(position, rotation);
+            var copy = Object.Instantiate(_template, position, rotation);
+            copy.SetActive(true);
+            return copy;
         }
 
         private bool TryGetPrefab(string id, out GameObject prefab)

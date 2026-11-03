@@ -4,7 +4,6 @@ using UnityEngine;
 
 namespace Game.Editor
 {
-    // Генерирует основную сцену: этаж с шестью рабочими местами и игрок из префаба.
     public static class CreateDemo3Scene
     {
         private const string MenuTitle = "Create Demo 3";

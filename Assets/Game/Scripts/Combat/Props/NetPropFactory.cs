@@ -2,7 +2,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Превращает статичный объект сцены в физический предмет: BoxCollider по габаритам мешей, Rigidbody, NetProp, NetPropImpact.
     public static class NetPropFactory
     {
         private const float MinColliderSize = 0.02f;

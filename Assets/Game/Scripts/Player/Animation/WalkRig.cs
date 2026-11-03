@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Game.Scripts.Player.Animation
@@ -55,15 +56,13 @@ namespace Game.Scripts.Player.Animation
             foreach (var child in root.GetComponentsInChildren<Transform>(true))
                 byName.TryAdd(child.name, child);
 
-            var bones = new Transform[BoneNames.Length];
-            for (var i = 0; i < BoneNames.Length; i++)
+            if (!BoneNames.All(byName.ContainsKey))
             {
-                if (byName.TryGetValue(BoneNames[i], out bones[i])) continue;
                 rig = null;
                 return false;
             }
 
-            rig = new WalkRig(root, bones);
+            rig = new WalkRig(root, BoneNames.Select(boneName => byName[boneName]).ToArray());
             return true;
         }
 

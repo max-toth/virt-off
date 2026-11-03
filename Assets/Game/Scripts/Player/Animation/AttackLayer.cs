@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Animation
 {
-    // Замах правой рукой: кулак вперёд или лещ наотмашь.
     public sealed class AttackLayer : IPoseLayer
     {
         private const float Duration = 0.35f;

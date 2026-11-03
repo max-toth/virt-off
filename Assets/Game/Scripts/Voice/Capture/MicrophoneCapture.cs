@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Voice.Capture
 {
-    // Запись с микрофона в кольцевой AudioClip и чтение из него кадрами.
     public sealed class MicrophoneCapture
     {
         private const int ClipLengthSeconds = 10;

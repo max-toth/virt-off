@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Sync
 {
-    // Включает управление игроком, когда сервер выдал id.
     [RequireComponent(typeof(PlayerController))]
     public class NetworkPlayerController : MonoBehaviour
     {

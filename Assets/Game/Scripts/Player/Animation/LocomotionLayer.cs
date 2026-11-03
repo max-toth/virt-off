@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Animation
 {
-    // Шаг, бег и присед: таз, ноги и маховые движения рук.
     public sealed class LocomotionLayer : IPoseLayer
     {
         private const float HipsBob = 0.03f;

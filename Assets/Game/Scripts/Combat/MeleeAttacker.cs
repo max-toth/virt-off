@@ -8,7 +8,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat
 {
-    // Удар кулаком / лещ: поиск цели перед камерой, отброс предмета, звук и пакет ATTACK.
     public sealed class MeleeAttacker
     {
         private const int MaxHits = 32;

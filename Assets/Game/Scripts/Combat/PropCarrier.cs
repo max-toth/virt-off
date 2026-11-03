@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat
 {
-    // Предмет в руках: прицеливание, подбор, удержание перед камерой, бросок и сброс.
     public sealed class PropCarrier
     {
         private const int MaxHits = 32;

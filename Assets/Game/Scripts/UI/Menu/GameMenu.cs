@@ -8,7 +8,6 @@ using Cursor = UnityEngine.Cursor;
 
 namespace Game.Scripts.UI.Menu
 {
-    // Меню паузы по Esc: игроки в лобби, возврат на старт, настройки, выход.
     [RequireComponent(typeof(UIDocument))]
     public class GameMenu : MonoBehaviour
     {

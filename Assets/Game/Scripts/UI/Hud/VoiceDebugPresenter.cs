@@ -6,7 +6,6 @@ using UnityEngine.UIElements;
 
 namespace Game.Scripts.UI.Hud
 {
-    // Отладочная панель голоса: id, микрофон, собеседники, статус, громкость и волна микрофона.
     [RequireComponent(typeof(UIDocument))]
     public class VoiceDebugPresenter : MonoBehaviour
     {

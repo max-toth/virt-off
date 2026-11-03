@@ -8,8 +8,6 @@ using UnityEngine.InputSystem;
 
 namespace Game.Scripts.Combat
 {
-    // Ввод драки своего игрока: ЛКМ — удар, ПКМ — лещ, E — взять предмет;
-    // с предметом в руках ЛКМ — бросить, E/ПКМ — положить.
     [RequireComponent(typeof(PlayerController))]
     public class PlayerCombat : MonoBehaviour
     {

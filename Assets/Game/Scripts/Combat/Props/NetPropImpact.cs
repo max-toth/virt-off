@@ -8,7 +8,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Последствия удара летящего предмета: толкает другие предметы, стучит, попадает в чужих игроков.
     [RequireComponent(typeof(NetProp))]
     public class NetPropImpact : MonoBehaviour
     {

@@ -62,7 +62,7 @@ namespace Game.Scripts.UI.Menu
             var hasVoice = VoiceManager.TryGetInstance(out var voice);
             var level = hasVoice ? Mathf.Clamp01(voice.MicLevel) : 0f;
             _levelBar.value = level;
-            _levelBar.EnableInClassList(WarningClass, level > WarningLevel && level <= DangerLevel);
+            _levelBar.EnableInClassList(WarningClass, level is > WarningLevel and <= DangerLevel);
             _levelBar.EnableInClassList(DangerClass, level > DangerLevel);
 
             _mutedToggle.SetValueWithoutNotify(GameSettings.MicMuted);

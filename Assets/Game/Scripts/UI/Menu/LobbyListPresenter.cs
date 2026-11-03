@@ -9,7 +9,6 @@ using UnityEngine.UIElements;
 
 namespace Game.Scripts.UI.Menu
 {
-    // Список игроков в лобби: свой микрофон и заглушение чужих.
     internal sealed class LobbyListPresenter : IDisposable
     {
         private const float SpeakingMicLevel = 0.05f;

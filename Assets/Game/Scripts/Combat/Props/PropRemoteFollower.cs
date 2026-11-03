@@ -2,7 +2,6 @@ using UnityEngine;
 
 namespace Game.Scripts.Combat.Props
 {
-    // Плавно ведёт предмет к позиции из пакетов другого клиента, пока они приходят.
     internal sealed class PropRemoteFollower
     {
         private const float Timeout = 1f;
