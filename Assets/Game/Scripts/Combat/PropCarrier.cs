@@ -18,12 +18,19 @@ namespace Game.Scripts.Combat
         private readonly Transform _view;
         private readonly CharacterController _controller;
         private readonly CarrySettings _settings;
+        private readonly NetPropRegistry _props;
+        private readonly GameSounds _sounds;
+        private readonly CombatNetwork _network;
         private NetProp _held;
         private NetProp _aimed;
         private Quaternion _heldRotationOffset;
 
-        public PropCarrier(Transform owner, Transform view, CharacterController controller, CarrySettings settings)
+        public PropCarrier(Transform owner, Transform view, CharacterController controller, CarrySettings settings,
+            NetPropRegistry props, GameSounds sounds, CombatNetwork network)
         {
+            _props = props;
+            _sounds = sounds;
+            _network = network;
             _owner = owner;
             _view = view;
             _controller = controller;
@@ -73,8 +80,8 @@ namespace Game.Scripts.Combat
             prop.Body.angularVelocity = Random.insideUnitSphere * _settings.ThrowSpin;
 
             var position = prop.transform.position;
-            GameSounds.Play(Sfx.Whoosh, position, ThrowVolume, ThrowPitch);
-            CombatNetwork.SendSound(Sfx.Whoosh, position, ThrowVolume);
+            _sounds.Play(Sfx.Whoosh, position, ThrowVolume, ThrowPitch);
+            _network.SendSound(Sfx.Whoosh, position, ThrowVolume);
         }
 
         public void Drop(Vector3 velocity)
@@ -110,7 +117,7 @@ namespace Game.Scripts.Combat
             }
 
             prop = null;
-            return nearestIndex >= 0 && NetProp.TryFind(HitBuffer[nearestIndex].collider, out prop) && !prop.IsHeld;
+            return nearestIndex >= 0 && _props.TryFind(HitBuffer[nearestIndex].collider, out prop) && !prop.IsHeld;
         }
     }
 }

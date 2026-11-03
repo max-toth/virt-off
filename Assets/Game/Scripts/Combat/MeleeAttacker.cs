@@ -19,10 +19,21 @@ namespace Game.Scripts.Combat
         private readonly Transform _owner;
         private readonly Transform _view;
         private readonly MeleeSettings _settings;
+        private readonly RemotePlayers _remotePlayers;
+        private readonly NetPropRegistry _props;
+        private readonly NetPropSender _propSender;
+        private readonly CombatSounds _sounds;
+        private readonly CombatNetwork _network;
         private float _nextAttackTime;
 
-        public MeleeAttacker(Transform owner, Transform view, MeleeSettings settings)
+        public MeleeAttacker(Transform owner, Transform view, MeleeSettings settings, RemotePlayers remotePlayers,
+            NetPropRegistry props, NetPropSender propSender, CombatSounds sounds, CombatNetwork network)
         {
+            _remotePlayers = remotePlayers;
+            _props = props;
+            _propSender = propSender;
+            _sounds = sounds;
+            _network = network;
             _owner = owner;
             _view = view;
             _settings = settings;
@@ -55,13 +66,13 @@ namespace Game.Scripts.Combat
                 hitSomething = true;
                 point = hit.distance > 0f ? hit.point : hitCollider.ClosestPoint(origin);
 
-                if (RemoteAvatar.TryFind(hitCollider, out var avatar))
+                if (_remotePlayers.TryFindAvatar(hitCollider, out var avatar))
                 {
                     target = avatar.Id;
                     var forward = Vector3.ProjectOnPlane(direction, Vector3.up).normalized;
                     impulse = settings.GetKnockback(forward, _owner.right);
                 }
-                else if (NetProp.TryFind(hitCollider, out var prop) && !prop.IsHeld)
+                else if (_props.TryFind(hitCollider, out var prop) && !prop.IsHeld)
                 {
                     PushProp(prop, settings, direction, point);
                 }
@@ -70,13 +81,13 @@ namespace Game.Scripts.Combat
             }
 
             var hitPlayer = !string.IsNullOrEmpty(target);
-            CombatSounds.PlayHit(kind, hitPlayer, hitSomething, point);
-            CombatNetwork.SendHit(kind, target, hitSomething ? point : origin, impulse, hitSomething && !hitPlayer);
+            _sounds.PlayHit(kind, hitPlayer, hitSomething, point);
+            _network.SendHit(kind, target, hitSomething ? point : origin, impulse, hitSomething && !hitPlayer);
         }
 
         private void PushProp(NetProp prop, AttackSettings settings, Vector3 direction, Vector3 point)
         {
-            prop.TakeOwnership(NetPropSender.LocalId);
+            prop.TakeOwnership(_propSender.LocalId);
             var strength = _settings.PropHitImpulse * settings.PropImpulseFactor * Mathf.Max(1f, prop.Body.mass * 0.5f);
             prop.Body.AddForceAtPosition(direction * strength, point, ForceMode.Impulse);
         }

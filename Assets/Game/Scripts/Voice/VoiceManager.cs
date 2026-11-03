@@ -3,6 +3,7 @@ using Game.Scripts.Settings;
 using Game.Scripts.Voice.Capture;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using VContainer;
 
 namespace Game.Scripts.Voice
 {
@@ -15,10 +16,10 @@ namespace Game.Scripts.Voice
         private MicrophoneCapture _capture;
         private VoiceEncoder _encoder;
         private MicTest _micTest;
+        private VoiceNetwork _network;
+        private GameSettings _settings;
+        private GameplayInput _input;
         private bool _waitingForConnection;
-
-        private static VoiceManager _instance;
-        private static bool _hasInstance;
 
         /// <summary>Уровень микрофона с учётом усиления, 0..1.</summary>
         public float MicLevel => _capture.Level;
@@ -27,8 +28,18 @@ namespace Game.Scripts.Voice
         public bool IsReady => _capture.IsStarted;
         public bool IsTesting => _micTest.IsRecording;
         public bool IsPlayingTest => _micTest.IsPlaying;
-        public bool IsTransmitting => !GameSettings.MicMuted && _capture.IsRecording;
+        public bool IsTransmitting => !_settings.MicMuted && _capture.IsRecording;
         public string MicDevice => _capture.Device;
+
+        [Inject]
+        public void Construct(VoiceNetwork network, GameSettings settings, GameplayInput input)
+        {
+            _network = network;
+            _settings = settings;
+            _input = input;
+            _capture = new MicrophoneCapture(settings);
+            _encoder = new VoiceEncoder();
+        }
 
         public void StartMicTest()
         {
@@ -37,39 +48,25 @@ namespace Game.Scripts.Voice
 
         public void StopMicTest()
         {
-            if (IsTesting) _micTest.Finish(GameSettings.MicGain);
-        }
-
-        /// <summary>Компонент на своём игроке, если он есть в сцене.</summary>
-        public static bool TryGetInstance(out VoiceManager instance)
-        {
-            instance = _instance;
-            return _hasInstance;
+            if (IsTesting) _micTest.Finish(_settings.MicGain);
         }
 
         public bool TryReadLatestSamples(float[] destination) => _capture.TryReadLatest(destination);
 
-        private void Awake()
-        {
-            _instance = this;
-            _hasInstance = true;
-            _capture = new MicrophoneCapture();
-            _encoder = new VoiceEncoder();
-            _micTest = new MicTest(gameObject.AddComponent<AudioSource>());
-        }
+        private void Awake() => _micTest = new MicTest(gameObject.AddComponent<AudioSource>());
 
         private void Start()
         {
-            GameSettings.MicDeviceChanged += RestartMic;
+            _settings.MicDeviceChanged += RestartMic;
 
-            if (VoiceNetwork.IsConnected)
+            if (_network.IsConnected)
             {
                 StartMic();
                 return;
             }
 
             _waitingForConnection = true;
-            VoiceNetwork.Connected += OnConnected;
+            _network.Connected += OnConnected;
         }
 
         private void OnDisable()
@@ -80,12 +77,9 @@ namespace Game.Scripts.Voice
 
         private void OnDestroy()
         {
-            GameSettings.MicDeviceChanged -= RestartMic;
+            if (_settings != null) _settings.MicDeviceChanged -= RestartMic;
             StopWaitingForConnection();
             _micTest.Dispose();
-            if (_instance != this) return;
-            _instance = null;
-            _hasInstance = false;
         }
 
         private void Update()
@@ -93,7 +87,7 @@ namespace Game.Scripts.Voice
             if (!IsReady) return;
 
             HandleHotkeys();
-            _capture.UpdateLevel(GameSettings.MicGain);
+            _capture.UpdateLevel(_settings.MicGain);
 
             if (IsTesting)
             {
@@ -107,7 +101,7 @@ namespace Game.Scripts.Voice
         // Отправляет все накопленные кадры: при низком FPS отставание не копится.
         private void Transmit()
         {
-            if (GameSettings.MicMuted || !VoiceNetwork.IsConnected)
+            if (_settings.MicMuted || !_network.IsConnected)
             {
                 _capture.SkipToNow();
                 return;
@@ -115,27 +109,27 @@ namespace Game.Scripts.Voice
 
             while (_capture.TryRead(_frame))
             {
-                var length = _encoder.Encode(_frame, GameSettings.MicGain);
-                VoiceNetwork.Send(_encoder.Output, length);
+                var length = _encoder.Encode(_frame, _settings.MicGain);
+                _network.Send(_encoder.Output, length);
             }
         }
 
         private void HandleHotkeys()
         {
             var keyboard = Keyboard.current;
-            if (keyboard == null || GameplayInput.IsBlocked) return;
+            if (keyboard == null || _input.IsBlocked) return;
 
             if (keyboard.mKey.wasPressedThisFrame)
             {
-                GameSettings.MicMuted = !GameSettings.MicMuted;
-                VoiceDiagnostics.Log($"[Voice] {(GameSettings.MicMuted ? "Muted" : "Unmuted")}");
+                _settings.MicMuted = !_settings.MicMuted;
+                VoiceDiagnostics.Log($"[Voice] {(_settings.MicMuted ? "Muted" : "Unmuted")}");
             }
 
             if (keyboard.rKey.wasPressedThisFrame) StartMicTest();
             else if (keyboard.rKey.wasReleasedThisFrame) StopMicTest();
 
-            if (keyboard.uKey.wasPressedThisFrame) GameSettings.VoiceVolume += VoiceVolumeStep;
-            if (keyboard.jKey.wasPressedThisFrame) GameSettings.VoiceVolume -= VoiceVolumeStep;
+            if (keyboard.uKey.wasPressedThisFrame) _settings.VoiceVolume += VoiceVolumeStep;
+            if (keyboard.jKey.wasPressedThisFrame) _settings.VoiceVolume -= VoiceVolumeStep;
         }
 
         private void OnConnected()
@@ -148,7 +142,7 @@ namespace Game.Scripts.Voice
         {
             if (!_waitingForConnection) return;
             _waitingForConnection = false;
-            VoiceNetwork.Connected -= OnConnected;
+            _network.Connected -= OnConnected;
         }
 
         private void StartMic()
@@ -161,7 +155,7 @@ namespace Game.Scripts.Voice
         // До подключения микрофон не запущен: выбранное устройство подхватится в StartMic.
         private void RestartMic()
         {
-            if (!VoiceNetwork.IsConnected) return;
+            if (!_network.IsConnected) return;
 
             _micTest.Cancel();
             _capture.Stop();

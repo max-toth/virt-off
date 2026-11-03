@@ -2,7 +2,8 @@
     "name": "Game.Scripts",
     "rootNamespace": "Game.Scripts",
     "references": [
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "VContainer"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

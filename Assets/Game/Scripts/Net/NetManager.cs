@@ -14,13 +14,20 @@ namespace Game.Scripts.Net
     {
         private const int ReceiveThreadJoinTimeoutMs = 500;
 
+        // Сервер мог быть ещё не запущен. На повторный Hello с того же адреса он выдаёт новый id
+        // и забывает прежний, поэтому Hello повторяется только до первого IdAssigned.
+        private const int HelloRetryIntervalMs = 1000;
+
         private static readonly byte[] HelloPacket = { PacketType.Hello };
 
         private readonly ConcurrentQueue<byte[]> _incoming = new();
+        private readonly PacketWriter _writer = new();
         private UdpClient _socket;
         private IPEndPoint _server;
         private Thread _receiveThread;
         private volatile bool _running;
+        private int _lastHelloTick;
+        private bool _disposed;
 
         public event Action<string, byte[]> PacketReceived;
         public event Action IdAssigned;
@@ -35,7 +42,7 @@ namespace Game.Scripts.Net
             var address = Resolve(host);
             _socket = new UdpClient(address.AddressFamily);
             _server = new IPEndPoint(address, port);
-            Send(HelloPacket, HelloPacket.Length);
+            SendHello();
 
             _running = true;
             _receiveThread = new Thread(ReceiveLoop) { IsBackground = true, Name = "NetManager.Receive" };
@@ -58,9 +65,11 @@ namespace Game.Scripts.Net
             }
         }
 
-        /// <summary>Разбирает накопленные пакеты и вызывает события. Только из главного потока.</summary>
+        /// <summary>Разбирает накопленные пакеты и вызывает события; до получения id повторяет Hello. Только из главного потока.</summary>
         public void ProcessIncoming()
         {
+            RetryHello();
+
             while (_incoming.TryDequeue(out var data))
             {
                 // Ошибка в одном обработчике не должна задерживать остальные пакеты кадра.
@@ -77,12 +86,14 @@ namespace Game.Scripts.Net
 
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
+
             if (IsConnected && !string.IsNullOrEmpty(LocalId))
             {
-                var writer = PacketWriter.Shared;
-                writer.Begin(PacketType.Disconnect);
-                writer.WriteString(LocalId);
-                writer.SendTo(this);
+                _writer.Begin(PacketType.Disconnect);
+                _writer.WriteString(LocalId);
+                _writer.SendTo(this);
             }
 
             _running = false;
@@ -107,11 +118,27 @@ namespace Game.Scripts.Net
             throw new SocketException((int)SocketError.HostNotFound);
         }
 
+        private void RetryHello()
+        {
+            if (IsConnected || _server == null) return;
+            if (unchecked(Environment.TickCount - _lastHelloTick) < HelloRetryIntervalMs) return;
+            SendHello();
+        }
+
+        private void SendHello()
+        {
+            _lastHelloTick = Environment.TickCount;
+            Send(HelloPacket, HelloPacket.Length);
+        }
+
         private void Handle(byte[] data)
         {
             if (data.Length >= 2 && data[0] == PacketType.IdAssigned)
             {
+                // Поздний ответ на один из повторных Hello: сервер помнит последний выданный id.
                 LocalId = Encoding.UTF8.GetString(data, 1, data.Length - 1);
+                if (IsConnected) return;
+
                 IsConnected = true;
                 IdAssigned?.Invoke();
                 return;

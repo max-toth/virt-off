@@ -1,6 +1,7 @@
 using Game.Scripts.Controls;
 using Game.Scripts.Settings;
 using UnityEngine;
+using VContainer;
 
 namespace Game.Scripts.Player
 {
@@ -43,17 +44,25 @@ namespace Game.Scripts.Player
         private PlayerMotor _motor;
         private Vector3 _spawnPosition;
         private Quaternion _spawnRotation;
+        private GameSettings _settings;
+        private GameplayInput _input;
+        private PlayerInputReader _inputReader;
 
-        /// <summary>Свой игрок в сцене.</summary>
-        public static PlayerController Local { get; private set; }
         /// <summary>Управление включено; меню по нему решает, захватывать ли курсор после закрытия.</summary>
-        public static bool ControlsActive { get; private set; }
+        public bool ControlsActive { get; private set; }
 
         public bool IsCrouching => _crouch.IsCrouching;
 
+        [Inject]
+        public void Construct(GameSettings settings, GameplayInput input, PlayerInputReader inputReader)
+        {
+            _settings = settings;
+            _input = input;
+            _inputReader = inputReader;
+        }
+
         private void Awake()
         {
-            Local = this;
             _controller = GetComponent<CharacterController>();
             _camera = GetComponentInChildren<Camera>();
             transform.GetPositionAndRotation(out _spawnPosition, out _spawnRotation);
@@ -63,7 +72,7 @@ namespace Game.Scripts.Player
             _crouch = new PlayerCrouch(_controller, cameraTransform, crouchHeight, crouchTransitionSpeed);
             _motor = new PlayerMotor(_controller, gravity, jumpHeight, knockbackDamping);
 
-            GameSettings.ApplyDefaultMouseSensitivity(mouseSensitivity);
+            _settings.ApplyDefaultMouseSensitivity(mouseSensitivity);
 
             SetupKinematicBody();
         }
@@ -71,7 +80,7 @@ namespace Game.Scripts.Player
         private void OnEnable()
         {
             ControlsActive = true;
-            if (GameplayInput.IsBlocked) return;
+            if (_input.IsBlocked) return;
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
@@ -83,16 +92,11 @@ namespace Game.Scripts.Player
             Cursor.visible = true;
         }
 
-        private void OnDestroy()
-        {
-            if (Local == this) Local = null;
-        }
-
         private void Update()
         {
-            if (!PlayerInputReader.TryRead(out var input)) return;
+            if (!_inputReader.TryRead(out var input)) return;
 
-            _camera.fieldOfView = GameSettings.FieldOfView;
+            _camera.fieldOfView = _settings.FieldOfView;
 
             if (transform.position.y < _spawnPosition.y - fallResetDepth)
             {
@@ -100,7 +104,7 @@ namespace Game.Scripts.Player
                 return;
             }
 
-            if (GameplayInput.IsBlocked)
+            if (_input.IsBlocked)
             {
                 _motor.Move(Vector3.zero);
                 return;

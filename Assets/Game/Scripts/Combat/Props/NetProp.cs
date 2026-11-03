@@ -1,5 +1,6 @@
 ﻿using Game.Scripts.Combat.Props.Models;
 using UnityEngine;
+using VContainer;
 
 namespace Game.Scripts.Combat.Props
 {
@@ -18,6 +19,7 @@ namespace Game.Scripts.Combat.Props
         private Vector3 _startPosition;
         private Quaternion _startRotation;
         private float _sendTimer;
+        private NetPropSender _sender;
 
         public int Id { get; internal set; }
 
@@ -39,7 +41,8 @@ namespace Game.Scripts.Combat.Props
         /// <summary>Сервер отдал нам предмет: мы рассылаем его состояние.</summary>
         internal bool HasAuthority => _ownership.HasAuthority;
 
-        public static bool TryFind(Collider collider, out NetProp prop) => NetPropRegistry.TryFind(collider, out prop);
+        [Inject]
+        public void Construct(NetPropSender sender) => _sender = sender;
 
         private void Awake()
         {
@@ -83,19 +86,19 @@ namespace Game.Scripts.Combat.Props
         /// <summary>Берёт предмет в руки сразу, не дожидаясь PROP_GRANT; при отказе или тайм-ауте предмет вернётся на место.</summary>
         public void RequestPickup(Collider holder)
         {
-            if (!NetPropSender.IsConnected) return;
+            if (!_sender.IsConnected) return;
 
             _ownership.RequestPickup(Time.time);
             Body.isKinematic = true;
             _holderCollision.Ignore(holder);
 
-            NetPropSender.SendPickupRequest(NetworkId);
+            _sender.SendPickupRequest(NetworkId);
             NetPropDiagnostics.Log($"PICKUP_REQ prop={Id} serverId={NetworkId}");
         }
 
         public void RequestRelease(Vector3 velocity, Vector3 angularVelocity, Collider holder)
         {
-            if (!NetPropSender.IsConnected) return;
+            if (!_sender.IsConnected) return;
 
             _ownership.Release();
             Body.isKinematic = false;
@@ -103,7 +106,7 @@ namespace Game.Scripts.Combat.Props
             Body.angularVelocity = angularVelocity;
             _holderCollision.ScheduleRestore(holder);
 
-            NetPropSender.SendRelease(NetworkId, velocity, angularVelocity);
+            _sender.SendRelease(NetworkId, velocity, angularVelocity);
             NetPropDiagnostics.Log($"PROP_RELEASE prop={Id} serverId={NetworkId}");
         }
 
@@ -199,7 +202,7 @@ namespace Game.Scripts.Combat.Props
         {
             transform.GetPositionAndRotation(out var position, out var rotation);
             var velocity = Body.isKinematic ? Vector3.zero : Body.linearVelocity;
-            NetPropSender.SendState(NetworkId, position, rotation, velocity, flags);
+            _sender.SendState(NetworkId, position, rotation, velocity, flags);
         }
 
         private void ResetToStart()

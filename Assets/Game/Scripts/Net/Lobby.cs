@@ -1,101 +1,111 @@
 using System;
 using System.Collections.Generic;
+using Game.Scripts.Common;
 using Game.Scripts.Net.Models;
 using Game.Scripts.Net.Packets;
-using UnityEngine;
+using VContainer.Unity;
 
 namespace Game.Scripts.Net
 {
-    /// <summary>Игроки в комнате. Сервер не присылает список: игрок считается присутствующим, пока от него приходят пакеты голоса или позиции.</summary>
-    public static class Lobby
+    /// <summary>Игроки в комнате. Списка от сервера нет: игрок появляется с первым пакетом голоса или позиции
+    /// и уходит по PLAYER_LEFT, а если тот потерялся — когда долго нет пакетов.</summary>
+    public sealed class Lobby : IInitializable, ITickable, IDisposable
     {
         private const float TimeoutSeconds = 5f;
         private const float ExpiryCheckInterval = 1f;
 
-        private static readonly Dictionary<string, LobbyPlayer> PlayersById = new(StringComparer.Ordinal);
-        private static readonly List<string> Expired = new();
-        private static PacketRouter _router;
-        private static float _nextExpiryCheck;
+        private readonly PacketRouter _router;
+        private readonly IClock _clock;
+        private readonly Dictionary<string, LobbyPlayer> _playersById = new(StringComparer.Ordinal);
+        private readonly List<string> _expired = new();
+        private float _nextExpiryCheck;
+
+        public Lobby(PacketRouter router, IClock clock)
+        {
+            _router = router;
+            _clock = clock;
+        }
 
         /// <summary>Новый игрок; аргумент — его id.</summary>
-        public static event Action<string> PlayerJoined;
+        public event Action<string> PlayerJoined;
 
-        /// <summary>От игрока долго нет пакетов; аргумент — его id.</summary>
-        public static event Action<string> PlayerLeft;
+        /// <summary>Игрок ушёл или от него долго нет пакетов; аргумент — его id.</summary>
+        public event Action<string> PlayerLeft;
 
-        public static IReadOnlyCollection<LobbyPlayer> Players => PlayersById.Values;
+        public IReadOnlyCollection<LobbyPlayer> Players => _playersById.Values;
 
-        public static bool IsMuted(string id) => PlayersById.TryGetValue(id, out var player) && player.Muted;
+        public bool IsMuted(string id) => _playersById.TryGetValue(id, out var player) && player.Muted;
 
-        public static void MarkSpeaking(string id)
+        public bool IsSpeaking(LobbyPlayer player) => player.IsSpeaking(_clock.UnscaledTime);
+
+        public void MarkSpeaking(string id)
         {
-            if (PlayersById.TryGetValue(id, out var player)) player.MarkSpeaking();
+            if (_playersById.TryGetValue(id, out var player)) player.MarkSpeaking(_clock.UnscaledTime);
         }
 
-        public static void Initialize(PacketRouter router)
+        public void Initialize()
         {
-            Unsubscribe();
-            _router = router;
-            router.Subscribe(PacketType.Voice, OnPlayerPacket);
-            router.Subscribe(PacketType.Position, OnPlayerPacket);
+            _router.Subscribe(PacketType.Voice, OnPlayerPacket);
+            _router.Subscribe(PacketType.Position, OnPlayerPacket);
+            _router.Subscribe(PacketType.PlayerLeft, OnPlayerLeft);
         }
 
-        /// <summary>Отписывается от пакетов, забывает игроков и подписчиков событий.</summary>
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        public static void Shutdown()
+        public void Tick() => RemoveExpired();
+
+        public void Dispose()
         {
-            Unsubscribe();
-            _nextExpiryCheck = 0f;
-            PlayersById.Clear();
-            PlayerJoined = null;
-            PlayerLeft = null;
+            _router.Unsubscribe(PacketType.Voice, OnPlayerPacket);
+            _router.Unsubscribe(PacketType.Position, OnPlayerPacket);
+            _router.Unsubscribe(PacketType.PlayerLeft, OnPlayerLeft);
         }
 
-        internal static void RemoveExpired()
+        /// <summary>Убирает игроков, от которых давно нет пакетов. Проверка — не чаще раза в секунду.</summary>
+        public void RemoveExpired()
         {
-            var now = Time.unscaledTime;
+            var now = _clock.UnscaledTime;
             if (now < _nextExpiryCheck) return;
             _nextExpiryCheck = now + ExpiryCheckInterval;
 
-            foreach (var player in PlayersById.Values)
+            foreach (var player in _playersById.Values)
             {
-                if (now - player.LastSeen > TimeoutSeconds) Expired.Add(player.Id);
+                if (now - player.LastSeen > TimeoutSeconds) _expired.Add(player.Id);
             }
 
-            foreach (var id in Expired)
-            {
-                PlayersById.Remove(id);
-                NetDiagnostics.Log($"[Lobby] {id} left");
-                PlayerLeft?.Invoke(id);
-            }
-
-            Expired.Clear();
-        }
-
-        private static void Unsubscribe()
-        {
-            if (_router == null) return;
-            _router.Unsubscribe(PacketType.Voice, OnPlayerPacket);
-            _router.Unsubscribe(PacketType.Position, OnPlayerPacket);
-            _router = null;
+            foreach (var id in _expired) Remove(id);
+            _expired.Clear();
         }
 
         // VOICE и POSITION начинаются с [sender:str].
-        private static void OnPlayerPacket(string localId, byte[] data)
+        private void OnPlayerPacket(string localId, byte[] data)
         {
             var reader = new PacketReader(data);
             var id = reader.ReadString();
             if (reader.Failed || id == localId) return;
 
-            if (!PlayersById.TryGetValue(id, out var player))
+            if (!_playersById.TryGetValue(id, out var player))
             {
                 player = new LobbyPlayer(id);
-                PlayersById.Add(id, player);
+                _playersById.Add(id, player);
                 NetDiagnostics.Log($"[Lobby] {id} joined");
                 PlayerJoined?.Invoke(id);
             }
 
-            player.LastSeen = Time.unscaledTime;
+            player.LastSeen = _clock.UnscaledTime;
+        }
+
+        // PLAYER_LEFT: [type][id:str]
+        private void OnPlayerLeft(string localId, byte[] data)
+        {
+            var reader = new PacketReader(data);
+            var id = reader.ReadString();
+            if (!reader.Failed) Remove(id);
+        }
+
+        private void Remove(string id)
+        {
+            if (!_playersById.Remove(id)) return;
+            NetDiagnostics.Log($"[Lobby] {id} left");
+            PlayerLeft?.Invoke(id);
         }
     }
 }

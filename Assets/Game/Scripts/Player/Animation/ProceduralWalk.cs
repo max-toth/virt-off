@@ -33,8 +33,6 @@ namespace Game.Scripts.Player.Animation
         private float _crouchBlend;
         private bool _crouching;
 
-        public static event Action<ProceduralWalk> Created;
-
         /// <summary>Замах правой рукой: кулак или, если slap, лещ.</summary>
         public void PlayAttack(bool slap) => _attack.Play(slap);
 
@@ -48,8 +46,6 @@ namespace Game.Scripts.Player.Animation
 
         private void Awake()
         {
-            Created?.Invoke(this);
-
             if (!WalkRig.TryCreate(transform, out _rig))
             {
                 Debug.LogWarning($"[ProceduralWalk] {name}: не найдены кости metarig, анимация отключена");

@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace Game.Scripts.Settings
 {
-    internal static class GameSettingsStorage
+    /// <summary>Хранение настроек в PlayerPrefs.</summary>
+    public sealed class GameSettingsStorage
     {
         private const string MicDeviceKey = "settings.micDevice";
         private const string MicGainKey = "settings.micGain";
@@ -14,32 +15,32 @@ namespace Game.Scripts.Settings
         private const string VSyncKey = "settings.vsync";
         private const string QualityKey = "settings.quality";
 
-        public static bool HasMouseSensitivity => PlayerPrefs.HasKey(MouseSensitivityKey);
+        public bool HasMouseSensitivity => PlayerPrefs.HasKey(MouseSensitivityKey);
 
-        public static void Load()
+        public void Load(GameSettings settings)
         {
-            GameSettings.MicDevice = PlayerPrefs.GetString(MicDeviceKey, string.Empty);
-            GameSettings.MicGain = PlayerPrefs.GetFloat(MicGainKey, GameSettings.DefaultMicGain);
-            GameSettings.MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, GameSettings.DefaultMasterVolume);
-            GameSettings.VoiceVolume = PlayerPrefs.GetFloat(VoiceVolumeKey, GameSettings.DefaultVoiceVolume);
-            GameSettings.MouseSensitivity = PlayerPrefs.GetFloat(MouseSensitivityKey, GameSettings.DefaultMouseSensitivity);
-            GameSettings.InvertY = GetBool(InvertYKey, false);
-            GameSettings.FieldOfView = PlayerPrefs.GetFloat(FieldOfViewKey, GameSettings.DefaultFieldOfView);
-            GameSettings.VSync = GetBool(VSyncKey, true);
-            GameSettings.QualityLevel = PlayerPrefs.GetInt(QualityKey, GameSettings.ProjectQualityLevel);
+            settings.MicDevice = PlayerPrefs.GetString(MicDeviceKey, string.Empty);
+            settings.MicGain = PlayerPrefs.GetFloat(MicGainKey, GameSettings.DefaultMicGain);
+            settings.MasterVolume = PlayerPrefs.GetFloat(MasterVolumeKey, GameSettings.DefaultMasterVolume);
+            settings.VoiceVolume = PlayerPrefs.GetFloat(VoiceVolumeKey, GameSettings.DefaultVoiceVolume);
+            settings.MouseSensitivity = PlayerPrefs.GetFloat(MouseSensitivityKey, GameSettings.DefaultMouseSensitivity);
+            settings.InvertY = GetBool(InvertYKey, false);
+            settings.FieldOfView = PlayerPrefs.GetFloat(FieldOfViewKey, GameSettings.DefaultFieldOfView);
+            settings.VSync = GetBool(VSyncKey, true);
+            settings.QualityLevel = PlayerPrefs.GetInt(QualityKey, GameSettings.ProjectQualityLevel);
         }
 
-        public static void Save()
+        public void Save(GameSettings settings)
         {
-            PlayerPrefs.SetString(MicDeviceKey, GameSettings.MicDevice);
-            PlayerPrefs.SetFloat(MicGainKey, GameSettings.MicGain);
-            PlayerPrefs.SetFloat(MasterVolumeKey, GameSettings.MasterVolume);
-            PlayerPrefs.SetFloat(VoiceVolumeKey, GameSettings.VoiceVolume);
-            PlayerPrefs.SetFloat(MouseSensitivityKey, GameSettings.MouseSensitivity);
-            SetBool(InvertYKey, GameSettings.InvertY);
-            PlayerPrefs.SetFloat(FieldOfViewKey, GameSettings.FieldOfView);
-            SetBool(VSyncKey, GameSettings.VSync);
-            PlayerPrefs.SetInt(QualityKey, GameSettings.QualityLevel);
+            PlayerPrefs.SetString(MicDeviceKey, settings.MicDevice);
+            PlayerPrefs.SetFloat(MicGainKey, settings.MicGain);
+            PlayerPrefs.SetFloat(MasterVolumeKey, settings.MasterVolume);
+            PlayerPrefs.SetFloat(VoiceVolumeKey, settings.VoiceVolume);
+            PlayerPrefs.SetFloat(MouseSensitivityKey, settings.MouseSensitivity);
+            SetBool(InvertYKey, settings.InvertY);
+            PlayerPrefs.SetFloat(FieldOfViewKey, settings.FieldOfView);
+            SetBool(VSyncKey, settings.VSync);
+            PlayerPrefs.SetInt(QualityKey, settings.QualityLevel);
             PlayerPrefs.Save();
         }
 

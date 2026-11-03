@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Net.Packets
 {
-    /// <summary>Общий переиспользуемый буфер исходящего пакета. Только главный поток: INetTransport.Send отправляет синхронно.</summary>
+    /// <summary>Переиспользуемый буфер исходящего пакета, один на контейнер. Только главный поток: INetTransport.Send отправляет синхронно.</summary>
     public sealed class PacketWriter
     {
         /// <summary>Длина строки пишется одним байтом.</summary>
@@ -15,8 +15,6 @@ namespace Game.Scripts.Net.Packets
 
         private byte[] _buffer = new byte[InitialCapacity];
         private int _length;
-
-        public static PacketWriter Shared { get; } = new();
 
         public void Begin(byte packetType)
         {

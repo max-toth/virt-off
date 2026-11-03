@@ -5,14 +5,16 @@ using UnityEngine;
 
 namespace Game.Scripts.Player.Sync
 {
-    public static class RemotePlayers
+    /// <summary>Чужие игроки сцены: аватары по id и по коллайдерам — по ним удары и брошенные предметы понимают, в кого попали.</summary>
+    public sealed class RemotePlayers
     {
-        private static readonly Dictionary<string, RemotePlayer> ById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, RemotePlayer> _byId = new(StringComparer.Ordinal);
+        private readonly Dictionary<Collider, RemoteAvatar> _avatarsByCollider = new();
 
         /// <summary>Анимация чужого игрока по его id.</summary>
-        public static bool TryGetWalk(string id, out ProceduralWalk walk)
+        public bool TryGetWalk(string id, out ProceduralWalk walk)
         {
-            if (id != null && ById.TryGetValue(id, out var player) && player.HasWalk)
+            if (id != null && _byId.TryGetValue(id, out var player) && player.HasWalk)
             {
                 walk = player.Walk;
                 return true;
@@ -22,20 +24,29 @@ namespace Game.Scripts.Player.Sync
             return false;
         }
 
-        internal static bool TryGet(string id, out RemotePlayer player) => ById.TryGetValue(id, out player);
+        public bool TryFindAvatar(Collider collider, out RemoteAvatar avatar) => _avatarsByCollider.TryGetValue(collider, out avatar);
 
-        internal static void Add(string id, RemotePlayer player) => ById.Add(id, player);
+        internal bool TryGet(string id, out RemotePlayer player) => _byId.TryGetValue(id, out player);
 
-        internal static bool Remove(string id, out RemotePlayer player) => ById.Remove(id, out player);
+        internal void Add(string id, RemotePlayer player) => _byId.Add(id, player);
 
-        internal static void Clear() => ById.Clear();
+        internal bool Remove(string id, out RemotePlayer player) => _byId.Remove(id, out player);
 
-        internal static void SmoothAll(float t)
+        internal void Clear() => _byId.Clear();
+
+        internal void SmoothAll(float t)
         {
-            foreach (var player in ById.Values) player.Smooth(t);
+            foreach (var player in _byId.Values) player.Smooth(t);
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetState() => Clear();
+        internal void RegisterAvatar(RemoteAvatar avatar, IEnumerable<Collider> colliders)
+        {
+            foreach (var collider in colliders) _avatarsByCollider[collider] = avatar;
+        }
+
+        internal void UnregisterAvatar(IEnumerable<Collider> colliders)
+        {
+            foreach (var collider in colliders) _avatarsByCollider.Remove(collider);
+        }
     }
 }

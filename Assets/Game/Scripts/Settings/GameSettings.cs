@@ -3,8 +3,9 @@ using UnityEngine;
 
 namespace Game.Scripts.Settings
 {
-    /// <summary>Настройки клиента. Save сохраняет их в PlayerPrefs, Apply применяет громкость и графику к движку; остальное компоненты читают сами.</summary>
-    public static class GameSettings
+    /// <summary>Настройки клиента. Загружаются при создании; Save сохраняет их, Apply применяет громкость и графику к движку,
+    /// остальное компоненты читают сами.</summary>
+    public sealed class GameSettings
     {
         public const float DefaultMicGain = 1f;
         public const float DefaultMasterVolume = 1f;
@@ -15,13 +16,21 @@ namespace Game.Scripts.Settings
 
         private const float MaxVoiceVolume = 2f;
 
-        private static string _micDevice = string.Empty;
-        private static float _voiceVolume = DefaultVoiceVolume;
+        private readonly GameSettingsStorage _storage;
+        private string _micDevice = string.Empty;
+        private volatile float _voiceVolume = DefaultVoiceVolume;
 
-        public static event Action MicDeviceChanged;
+        public GameSettings(GameSettingsStorage storage)
+        {
+            _storage = storage;
+            _storage.Load(this);
+            Apply();
+        }
+
+        public event Action MicDeviceChanged;
 
         /// <summary>Выбранный микрофон; пустая строка — первый доступный.</summary>
-        public static string MicDevice
+        public string MicDevice
         {
             get => _micDevice;
             set
@@ -33,40 +42,41 @@ namespace Game.Scripts.Settings
             }
         }
 
-        public static float MicGain { get; set; } = DefaultMicGain;
-        public static bool MicMuted { get; set; }
-        public static float MasterVolume { get; set; } = DefaultMasterVolume;
+        public float MicGain { get; set; } = DefaultMicGain;
+        public bool MicMuted { get; set; }
+        public float MasterVolume { get; set; } = DefaultMasterVolume;
 
-        public static float VoiceVolume
+        /// <summary>Читается из аудиопотока.</summary>
+        public float VoiceVolume
         {
             get => _voiceVolume;
             set => _voiceVolume = Mathf.Clamp(value, 0f, MaxVoiceVolume);
         }
 
-        public static float MouseSensitivity { get; set; } = DefaultMouseSensitivity;
-        public static bool InvertY { get; set; }
-        public static float FieldOfView { get; set; } = DefaultFieldOfView;
-        public static bool VSync { get; set; } = true;
-        public static int QualityLevel { get; set; } = ProjectQualityLevel;
+        public float MouseSensitivity { get; set; } = DefaultMouseSensitivity;
+        public bool InvertY { get; set; }
+        public float FieldOfView { get; set; } = DefaultFieldOfView;
+        public bool VSync { get; set; } = true;
+        public int QualityLevel { get; set; } = ProjectQualityLevel;
 
-        public static void Save() => GameSettingsStorage.Save();
+        public void Save() => _storage.Save(this);
 
         /// <summary>Значение из сцены используется, пока игрок не сохранил свою чувствительность.</summary>
-        public static void ApplyDefaultMouseSensitivity(float value)
+        public void ApplyDefaultMouseSensitivity(float value)
         {
-            if (!GameSettingsStorage.HasMouseSensitivity) MouseSensitivity = value;
+            if (!_storage.HasMouseSensitivity) MouseSensitivity = value;
         }
 
         /// <summary>Сохранённый микрофон, если он подключён, иначе первый доступный.</summary>
         /// <returns>null — микрофонов нет.</returns>
-        public static string ResolveMicDevice()
+        public string ResolveMicDevice()
         {
             var devices = Microphone.devices;
             if (devices.Length == 0) return null;
             return !string.IsNullOrEmpty(_micDevice) && Array.IndexOf(devices, _micDevice) >= 0 ? _micDevice : devices[0];
         }
 
-        public static void Apply()
+        public void Apply()
         {
             AudioListener.volume = MasterVolume;
 
@@ -76,7 +86,7 @@ namespace Game.Scripts.Settings
             QualitySettings.vSyncCount = VSync ? 1 : 0;
         }
 
-        public static void ResetToDefaults()
+        public void ResetToDefaults()
         {
             MicDevice = string.Empty;
             MicGain = DefaultMicGain;
@@ -87,15 +97,6 @@ namespace Game.Scripts.Settings
             FieldOfView = DefaultFieldOfView;
             VSync = true;
             QualityLevel = ProjectQualityLevel;
-            Apply();
-        }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void Initialize()
-        {
-            MicDeviceChanged = null;
-            MicMuted = false;
-            GameSettingsStorage.Load();
             Apply();
         }
     }

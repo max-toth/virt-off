@@ -1,6 +1,7 @@
 using System;
 using Concentus.Structs;
 using Game.Scripts.Settings;
+using Game.Scripts.Voice.Models;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -16,12 +17,15 @@ namespace Game.Scripts.Voice.Playback
         private readonly OpusDecoder _decoder;
         private readonly short[] _pcm = new short[VoiceFormat.FrameSize];
         private readonly VoiceJitterBuffer _buffer = new(BufferCapacity, TargetDelay, MaxDelay);
+        private readonly VoiceSequenceTracker _sequence = new();
+        private readonly GameSettings _settings;
         private readonly AudioSource _source;
         private readonly AudioClip _clip;
         private bool _disposed;
 
-        public VoiceStream(string ownerId, Transform parent)
+        public VoiceStream(string ownerId, Transform parent, GameSettings settings)
         {
+            _settings = settings;
             _decoder = new OpusDecoder(VoiceFormat.SampleRate, VoiceFormat.Channels);
 
             var host = new GameObject($"VoiceStream_{ownerId}");
@@ -35,12 +39,19 @@ namespace Game.Scripts.Voice.Playback
             _source.Play();
         }
 
-        /// <summary>Декодирует кадр Opus в буфер воспроизведения.</summary>
-        /// <returns>Пиковая амплитуда кадра, 0..1.</returns>
-        public float Feed(byte[] data, int offset, int count)
+        /// <summary>Декодирует кадр Opus в буфер воспроизведения; потерянные перед ним кадры синтезирует декодер.</summary>
+        /// <returns>Пиковая амплитуда кадра, 0..1; 0 — дубликат или опоздавший кадр отброшен.</returns>
+        public float Feed(VoicePacket packet)
         {
+            var lost = _sequence.Accept(packet.Sequence);
+            if (lost == VoiceSequenceTracker.Drop) return 0f;
+
+            // Без данных Opus восстанавливает пропуск по предыдущим кадрам (packet loss concealment).
+            for (var i = 0; i < lost; i++)
+                _buffer.Write(_pcm, _decoder.Decode(null, 0, 0, _pcm, 0, _pcm.Length));
+
             // Декодируется каждый кадр, даже отброшенный буфером: состояние декодера зависит от предыдущих кадров.
-            var samples = _decoder.Decode(data, offset, count, _pcm, 0, _pcm.Length);
+            var samples = _decoder.Decode(packet.Data, packet.Offset, packet.Count, _pcm, 0, _pcm.Length);
             _buffer.Write(_pcm, samples);
 
             var peak = 0;
@@ -64,6 +75,6 @@ namespace Game.Scripts.Voice.Playback
             Object.Destroy(_clip);
         }
 
-        private void OnAudioRead(float[] data) => _buffer.Read(data, GameSettings.VoiceVolume);
+        private void OnAudioRead(float[] data) => _buffer.Read(data, _settings.VoiceVolume);
     }
 }

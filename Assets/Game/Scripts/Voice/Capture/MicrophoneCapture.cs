@@ -12,6 +12,9 @@ namespace Game.Scripts.Voice.Capture
         private readonly float[] _levelBuffer = new float[LevelWindow];
         private AudioClip _clip;
         private int _readPosition;
+        private readonly GameSettings _settings;
+
+        public MicrophoneCapture(GameSettings settings) => _settings = settings;
 
         public string Device { get; private set; }
         public bool IsStarted { get; private set; }
@@ -23,7 +26,7 @@ namespace Game.Scripts.Voice.Capture
 
         public bool Start()
         {
-            Device = GameSettings.ResolveMicDevice();
+            Device = _settings.ResolveMicDevice();
             if (Device == null) return false;
 
             _clip = Microphone.Start(Device, true, ClipLengthSeconds, VoiceFormat.SampleRate);

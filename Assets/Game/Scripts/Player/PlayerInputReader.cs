@@ -5,11 +5,15 @@ using UnityEngine.InputSystem;
 
 namespace Game.Scripts.Player
 {
-    public static class PlayerInputReader
+    public sealed class PlayerInputReader
     {
         private const float MouseScale = 0.01f;
 
-        public static bool TryRead(out PlayerInputState input)
+        private readonly GameSettings _settings;
+
+        public PlayerInputReader(GameSettings settings) => _settings = settings;
+
+        public bool TryRead(out PlayerInputState input)
         {
             var keyboard = Keyboard.current;
             var mouse = Mouse.current;
@@ -19,8 +23,8 @@ namespace Game.Scripts.Player
                 return false;
             }
 
-            var look = mouse.delta.ReadValue() * (GameSettings.MouseSensitivity * MouseScale);
-            if (GameSettings.InvertY) look.y = -look.y;
+            var look = mouse.delta.ReadValue() * (_settings.MouseSensitivity * MouseScale);
+            if (_settings.InvertY) look.y = -look.y;
 
             input = new PlayerInputState(
                 look,

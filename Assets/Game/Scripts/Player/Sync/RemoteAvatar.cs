@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace Game.Scripts.Player.Sync
 {
@@ -11,16 +10,13 @@ namespace Game.Scripts.Player.Sync
         private const float CenterHeight = 0.85f;
         private const float MinScale = 0.01f;
 
-        private static readonly Dictionary<Collider, RemoteAvatar> ByCollider = new();
-
         private Collider[] _colliders;
+        private RemotePlayers _registry;
 
         public string Id { get; private set; }
 
-        public static bool TryFind(Collider collider, out RemoteAvatar avatar) => ByCollider.TryGetValue(collider, out avatar);
-
         /// <summary>Добавляет капсулу и кинематический Rigidbody: в игрока можно попасть, предметы от него отскакивают.</summary>
-        public static void Attach(GameObject target, string id)
+        public static void Attach(GameObject target, string id, RemotePlayers registry)
         {
             var avatar = target.AddComponent<RemoteAvatar>();
             avatar.Id = id;
@@ -35,22 +31,14 @@ namespace Game.Scripts.Player.Sync
             body.isKinematic = true;
             body.interpolation = RigidbodyInterpolation.None;
 
-            avatar.RegisterColliders();
+            avatar._registry = registry;
+            avatar._colliders = target.GetComponentsInChildren<Collider>(true);
+            registry.RegisterAvatar(avatar, avatar._colliders);
         }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetState() => ByCollider.Clear();
 
         private void OnDestroy()
         {
-            if (_colliders == null) return;
-            foreach (var own in _colliders) ByCollider.Remove(own);
-        }
-
-        private void RegisterColliders()
-        {
-            _colliders = GetComponentsInChildren<Collider>(true);
-            foreach (var own in _colliders) ByCollider[own] = this;
+            if (_colliders != null) _registry.UnregisterAvatar(_colliders);
         }
     }
 }

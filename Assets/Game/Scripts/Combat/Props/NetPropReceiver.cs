@@ -1,43 +1,49 @@
+using System;
 using System.Collections.Generic;
 using Game.Scripts.Combat.Props.Models;
 using Game.Scripts.Net.Packets;
 using Game.Scripts.Player.Sync;
-using UnityEngine;
+using VContainer.Unity;
 
 namespace Game.Scripts.Combat.Props
 {
-    public static class NetPropReceiver
+    /// <summary>Пакеты предметов от сервера и других клиентов: применяет их к предметам сцены.</summary>
+    public sealed class NetPropReceiver : IInitializable, IDisposable
     {
         private const byte ReleaseEventFreeFlag = 1;
         private const int ServerIdSize = 4;
         private const int VelocitySize = 12;
         private const float RemoteHoldAnimationTime = 0.3f;
 
-        private static readonly List<int> ServerIds = new();
-        private static readonly List<PropSnapshotEntry> SnapshotEntries = new();
-        private static PacketRouter _router;
+        private readonly PacketRouter _router;
+        private readonly NetPropRegistry _registry;
+        private readonly RemotePlayers _remotePlayers;
+        private readonly List<int> _serverIds = new();
+        private readonly List<PropSnapshotEntry> _snapshotEntries = new();
 
-        public static void Initialize(PacketRouter router)
+        public NetPropReceiver(PacketRouter router, NetPropRegistry registry, RemotePlayers remotePlayers)
         {
-            Shutdown();
             _router = router;
-            router.Subscribe(PacketType.PropManifestAck, OnManifestAck);
-            router.Subscribe(PacketType.PropGrant, OnGrant);
-            router.Subscribe(PacketType.PropReleaseEvent, OnReleaseEvent);
-            router.Subscribe(PacketType.PropSnapshot, OnSnapshot);
-            router.Subscribe(PacketType.PropState, OnState);
+            _registry = registry;
+            _remotePlayers = remotePlayers;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        public static void Shutdown()
+        public void Initialize()
         {
-            if (_router == null) return;
+            _router.Subscribe(PacketType.PropManifestAck, OnManifestAck);
+            _router.Subscribe(PacketType.PropGrant, OnGrant);
+            _router.Subscribe(PacketType.PropReleaseEvent, OnReleaseEvent);
+            _router.Subscribe(PacketType.PropSnapshot, OnSnapshot);
+            _router.Subscribe(PacketType.PropState, OnState);
+        }
+
+        public void Dispose()
+        {
             _router.Unsubscribe(PacketType.PropManifestAck, OnManifestAck);
             _router.Unsubscribe(PacketType.PropGrant, OnGrant);
             _router.Unsubscribe(PacketType.PropReleaseEvent, OnReleaseEvent);
             _router.Unsubscribe(PacketType.PropSnapshot, OnSnapshot);
             _router.Unsubscribe(PacketType.PropState, OnState);
-            _router = null;
         }
 
         // MANIFEST_ACK: [type][count:2][serverId:4]*
@@ -114,19 +120,19 @@ namespace Game.Scripts.Combat.Props
             return !reader.Failed;
         }
 
-        private static void OnManifestAck(string localId, byte[] data)
+        private void OnManifestAck(string localId, byte[] data)
         {
-            if (!TryReadManifestAck(data, ServerIds)) return;
+            if (!TryReadManifestAck(data, _serverIds)) return;
 
-            for (var i = 0; i < ServerIds.Count; i++)
-                NetPropRegistry.AssignServerId(i, ServerIds[i]);
+            for (var i = 0; i < _serverIds.Count; i++)
+                _registry.AssignServerId(i, _serverIds[i]);
 
-            NetPropDiagnostics.Log($"MANIFEST_ACK: {ServerIds.Count} props mapped");
+            NetPropDiagnostics.Log($"MANIFEST_ACK: {_serverIds.Count} props mapped");
         }
 
-        private static void OnGrant(string localId, byte[] data)
+        private void OnGrant(string localId, byte[] data)
         {
-            if (!TryReadGrant(data, out var grant) || !NetPropRegistry.TryGetByServerId(grant.PropId, out var prop)) return;
+            if (!TryReadGrant(data, out var grant) || !_registry.TryGetByServerId(grant.PropId, out var prop)) return;
 
             if (grant.Holder == localId)
             {
@@ -140,9 +146,9 @@ namespace Game.Scripts.Combat.Props
             }
         }
 
-        private static void OnReleaseEvent(string localId, byte[] data)
+        private void OnReleaseEvent(string localId, byte[] data)
         {
-            if (!TryReadReleaseEvent(data, out var release) || !NetPropRegistry.TryGetByServerId(release.PropId, out var prop))
+            if (!TryReadReleaseEvent(data, out var release) || !_registry.TryGetByServerId(release.PropId, out var prop))
                 return;
 
             prop.ApplyRelease(release.PreviousOwner == localId, release.IsFree);
@@ -150,26 +156,26 @@ namespace Game.Scripts.Combat.Props
         }
 
         // Обрезанный снимок применяется частично: прочитанные записи достоверны.
-        private static void OnSnapshot(string localId, byte[] data)
+        private void OnSnapshot(string localId, byte[] data)
         {
-            TryReadSnapshot(data, SnapshotEntries);
+            TryReadSnapshot(data, _snapshotEntries);
 
-            foreach (var entry in SnapshotEntries)
+            foreach (var entry in _snapshotEntries)
             {
-                if (NetPropRegistry.TryGetByServerId(entry.PropId, out var prop))
+                if (_registry.TryGetByServerId(entry.PropId, out var prop))
                     prop.ApplySnapshot(entry.Held);
             }
 
-            NetPropDiagnostics.Log($"PROP_SNAPSHOT: {SnapshotEntries.Count} entries");
+            NetPropDiagnostics.Log($"PROP_SNAPSHOT: {_snapshotEntries.Count} entries");
         }
 
-        private static void OnState(string localId, byte[] data)
+        private void OnState(string localId, byte[] data)
         {
             if (!TryReadState(data, out var state) || state.Sender == localId) return;
-            if (!NetPropRegistry.TryGetByServerId(state.PropId, out var prop)) return;
+            if (!_registry.TryGetByServerId(state.PropId, out var prop)) return;
             if (!prop.ApplyRemoteState(state.Sender, state.Position, state.Rotation, state.Flags)) return;
 
-            if ((state.Flags & PropStateFlags.Held) != 0 && RemotePlayers.TryGetWalk(state.Sender, out var walk))
+            if ((state.Flags & PropStateFlags.Held) != 0 && _remotePlayers.TryGetWalk(state.Sender, out var walk))
                 walk.HoldItem(RemoteHoldAnimationTime);
         }
     }

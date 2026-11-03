@@ -1,5 +1,6 @@
 using System;
 using Game.Scripts.Settings;
+using Game.Scripts.Voice;
 using UnityEngine.UIElements;
 
 namespace Game.Scripts.UI.Menu
@@ -13,9 +14,11 @@ namespace Game.Scripts.UI.Menu
         private readonly AudioSettingsPresenter _audio;
         private readonly ControlsSettingsPresenter _controls;
         private readonly GraphicsSettingsPresenter _graphics;
+        private readonly GameSettings _settings;
 
-        public SettingsPresenter(VisualElement root, Action back)
+        public SettingsPresenter(VisualElement root, Action back, GameSettings settings, VoiceManager voice)
         {
+            _settings = settings;
             _tabButtons = new[] { root.Q<Button>("audioTabButton"), root.Q<Button>("controlsTabButton"), root.Q<Button>("graphicsTabButton") };
             _tabs = new[] { root.Q("audioTab"), root.Q("controlsTab"), root.Q("graphicsTab") };
             for (var i = 0; i < _tabButtons.Length; i++)
@@ -27,13 +30,13 @@ namespace Game.Scripts.UI.Menu
             root.Q<Button>("resetSettingsButton").clicked += ResetToDefaults;
             root.Q<Button>("backButton").clicked += () =>
             {
-                GameSettings.Save();
+                _settings.Save();
                 back();
             };
 
-            _audio = new AudioSettingsPresenter(root);
-            _controls = new ControlsSettingsPresenter(root);
-            _graphics = new GraphicsSettingsPresenter(root);
+            _audio = new AudioSettingsPresenter(root, settings, voice);
+            _controls = new ControlsSettingsPresenter(root, settings);
+            _graphics = new GraphicsSettingsPresenter(root, settings);
             SelectTab(0);
         }
 
@@ -48,7 +51,7 @@ namespace Game.Scripts.UI.Menu
 
         private void ResetToDefaults()
         {
-            GameSettings.ResetToDefaults();
+            _settings.ResetToDefaults();
             Load();
         }
 

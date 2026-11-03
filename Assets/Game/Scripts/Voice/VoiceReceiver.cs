@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Game.Scripts.Net;
+using Game.Scripts.Settings;
 using Game.Scripts.Voice.Models;
 using Game.Scripts.Voice.Playback;
 using UnityEngine;
+using VContainer;
 
 namespace Game.Scripts.Voice
 {
@@ -14,21 +16,32 @@ namespace Game.Scripts.Voice
         [SerializeField] private Transform audioRoot;
 
         private readonly Dictionary<string, VoiceStream> _streams = new(StringComparer.Ordinal);
+        private VoiceNetwork _network;
+        private Lobby _lobby;
+        private GameSettings _settings;
 
         public int ActiveStreamCount => _streams.Count;
 
-        private void Awake()
+        [Inject]
+        public void Construct(VoiceNetwork network, Lobby lobby, GameSettings settings)
         {
-            VoiceNetwork.Received += Receive;
+            _network = network;
+            _lobby = lobby;
+            _settings = settings;
+        }
+
+        private void Start()
+        {
+            _network.Received += Receive;
+            _lobby.PlayerLeft += OnPlayerLeft;
             AudioSettings.OnAudioConfigurationChanged += OnAudioConfigurationChanged;
-            Lobby.PlayerLeft += OnPlayerLeft;
         }
 
         private void OnDestroy()
         {
-            VoiceNetwork.Received -= Receive;
+            if (_network != null) _network.Received -= Receive;
+            if (_lobby != null) _lobby.PlayerLeft -= OnPlayerLeft;
             AudioSettings.OnAudioConfigurationChanged -= OnAudioConfigurationChanged;
-            Lobby.PlayerLeft -= OnPlayerLeft;
 
             foreach (var stream in _streams.Values) stream.Dispose();
             _streams.Clear();
@@ -36,17 +49,16 @@ namespace Game.Scripts.Voice
 
         private void Receive(VoicePacket packet)
         {
-            if (Lobby.IsMuted(packet.Sender)) return;
+            if (_lobby.IsMuted(packet.Sender)) return;
 
             if (!_streams.TryGetValue(packet.Sender, out var stream))
             {
-                stream = new VoiceStream(packet.Sender, audioRoot != null ? audioRoot : transform);
+                stream = new VoiceStream(packet.Sender, audioRoot != null ? audioRoot : transform, _settings);
                 _streams.Add(packet.Sender, stream);
                 VoiceDiagnostics.Log($"[Voice] {packet.Sender} joined");
             }
 
-            if (stream.Feed(packet.Data, packet.Offset, packet.Count) > SpeakingThreshold)
-                Lobby.MarkSpeaking(packet.Sender);
+            if (stream.Feed(packet) > SpeakingThreshold) _lobby.MarkSpeaking(packet.Sender);
         }
 
         private void OnAudioConfigurationChanged(bool deviceWasChanged)

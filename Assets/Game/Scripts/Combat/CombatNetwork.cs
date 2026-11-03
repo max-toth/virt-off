@@ -1,68 +1,72 @@
 using System;
-using Game.Scripts.Audio;
 using Game.Scripts.Audio.Models;
 using Game.Scripts.Combat.Models;
 using Game.Scripts.Net;
 using Game.Scripts.Net.Packets;
 using UnityEngine;
+using VContainer.Unity;
 
 namespace Game.Scripts.Combat
 {
-    public static class CombatNetwork
+    public sealed class CombatNetwork : IInitializable, IDisposable
     {
-        private static INetTransport _transport;
-        private static PacketRouter _router;
+        private readonly INetTransport _transport;
+        private readonly PacketRouter _router;
+        private readonly PacketWriter _writer;
 
-        /// <summary>Удар другого игрока (свои удары не приходят).</summary>
-        public static event Action<HitMessage> HitReceived;
-
-        public static string LocalId => _transport?.LocalId;
-
-        public static void Initialize(INetTransport transport, PacketRouter router)
+        public CombatNetwork(INetTransport transport, PacketRouter router, PacketWriter writer)
         {
-            Unsubscribe();
             _transport = transport;
             _router = router;
-            router.Subscribe(PacketType.Attack, OnAttack);
-            router.Subscribe(PacketType.Sound, OnSound);
+            _writer = writer;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        public static void Shutdown()
+        /// <summary>Удар другого игрока (свои удары не приходят).</summary>
+        public event Action<HitMessage> HitReceived;
+
+        /// <summary>Звук от другого игрока (свои не приходят).</summary>
+        public event Action<SoundMessage> SoundReceived;
+
+        public string LocalId => _transport.LocalId;
+
+        public void Initialize()
         {
-            Unsubscribe();
-            _transport = null;
-            HitReceived = null;
+            _router.Subscribe(PacketType.Attack, OnAttack);
+            _router.Subscribe(PacketType.Sound, OnSound);
+        }
+
+        public void Dispose()
+        {
+            _router.Unsubscribe(PacketType.Attack, OnAttack);
+            _router.Unsubscribe(PacketType.Sound, OnSound);
         }
 
         // ATTACK: [type][attacker:str][kind:1][target:str][point:12][impulse:12][hitObject:1]
-        public static void SendHit(AttackKind kind, string target, Vector3 point, Vector3 impulse, bool hitObject = false)
+        public void SendHit(AttackKind kind, string target, Vector3 point, Vector3 impulse, bool hitObject = false)
         {
-            if (_transport is not { IsConnected: true } transport) return;
+            if (!_transport.IsConnected) return;
 
-            var writer = PacketWriter.Shared;
-            writer.Begin(PacketType.Attack);
-            writer.WriteString(transport.LocalId);
-            writer.WriteByte((byte)kind);
-            writer.WriteString(target);
-            writer.WriteVector3(point);
-            writer.WriteVector3(impulse);
-            writer.WriteBool(hitObject);
-            writer.SendTo(transport);
+            _writer.Begin(PacketType.Attack);
+            _writer.WriteString(_transport.LocalId);
+            _writer.WriteByte((byte)kind);
+            _writer.WriteString(target);
+            _writer.WriteVector3(point);
+            _writer.WriteVector3(impulse);
+            _writer.WriteBool(hitObject);
+            _writer.SendTo(_transport);
         }
 
         // SOUND: [type][sender:str][sfx:1][position:12][volume:4]
-        public static void SendSound(Sfx sfx, Vector3 position, float volume)
+        public void SendSound(Sfx sfx, Vector3 position, float volume)
         {
-            if (_transport is not { IsConnected: true } transport) return;
+            if (!_transport.IsConnected) return;
 
-            var writer = PacketWriter.Shared;
-            writer.Begin(PacketType.Sound);
-            writer.WriteString(transport.LocalId);
-            writer.WriteByte((byte)sfx);
-            writer.WriteVector3(position);
-            writer.WriteSingle(volume);
-            writer.SendTo(transport);
+            _writer.Begin(PacketType.Sound);
+            _writer.WriteString(_transport.LocalId);
+            _writer.WriteByte((byte)sfx);
+            _writer.WriteVector3(position);
+            _writer.WriteSingle(volume);
+            _writer.SendTo(_transport);
         }
 
         public static bool TryReadHit(byte[] data, out HitMessage hit)
@@ -91,23 +95,14 @@ namespace Game.Scripts.Combat
             return !reader.Failed;
         }
 
-        private static void Unsubscribe()
-        {
-            if (_router == null) return;
-            _router.Unsubscribe(PacketType.Attack, OnAttack);
-            _router.Unsubscribe(PacketType.Sound, OnSound);
-            _router = null;
-        }
-
-        private static void OnAttack(string localId, byte[] data)
+        private void OnAttack(string localId, byte[] data)
         {
             if (TryReadHit(data, out var hit) && hit.Attacker != localId) HitReceived?.Invoke(hit);
         }
 
-        private static void OnSound(string localId, byte[] data)
+        private void OnSound(string localId, byte[] data)
         {
-            if (TryReadSound(data, out var sound) && sound.Sender != localId)
-                GameSounds.Play(sound.Sfx, sound.Position, sound.Volume);
+            if (TryReadSound(data, out var sound) && sound.Sender != localId) SoundReceived?.Invoke(sound);
         }
     }
 }

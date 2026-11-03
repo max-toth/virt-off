@@ -1,8 +1,8 @@
 using Game.Scripts.Combat;
-using Game.Scripts.Player;
-using Game.Scripts.UI.Menu;
+using Game.Scripts.Controls;
 using UnityEngine;
 using UnityEngine.UIElements;
+using VContainer;
 
 namespace Game.Scripts.UI.Hud
 {
@@ -16,8 +16,15 @@ namespace Game.Scripts.UI.Hud
         private Label _hint;
         private Label _menuHint;
         private PlayerCombat _combat;
-        private bool _hasCombat;
+        private GameplayInput _input;
         private string _shownHint;
+
+        [Inject]
+        public void Construct(PlayerCombat combat, GameplayInput input)
+        {
+            _combat = combat;
+            _input = input;
+        }
 
         private void OnEnable()
         {
@@ -26,22 +33,14 @@ namespace Game.Scripts.UI.Hud
             _hint = root.Q<Label>("hintLabel");
             _menuHint = root.Q<Label>("menuHint");
 
-            GameMenu.OpenChanged += OnMenuOpenChanged;
-            OnMenuOpenChanged(GameMenu.IsOpen);
+            _input.BlockedChanged += OnMenuOpenChanged;
+            OnMenuOpenChanged(_input.IsBlocked);
         }
 
-        private void Start()
-        {
-            var player = PlayerController.Local;
-            _hasCombat = player != null && player.TryGetComponent(out _combat);
-        }
-
-        private void OnDisable() => GameMenu.OpenChanged -= OnMenuOpenChanged;
+        private void OnDisable() => _input.BlockedChanged -= OnMenuOpenChanged;
 
         private void Update()
         {
-            if (!_hasCombat) return;
-
             var active = _combat.IsActive;
             _crosshair.SetVisible(active);
 

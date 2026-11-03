@@ -1,15 +1,20 @@
-using UnityEngine;
+using System;
 
 namespace Game.Scripts.Controls
 {
     /// <summary>Блокировка игрового ввода, пока открыто меню: геймплей проверяет её, не завися от UI.</summary>
-    public static class GameplayInput
+    public sealed class GameplayInput
     {
-        public static bool IsBlocked { get; private set; }
+        public bool IsBlocked { get; private set; }
 
-        public static void SetBlocked(bool blocked) => IsBlocked = blocked;
+        /// <summary>Аргумент — заблокирован ли ввод.</summary>
+        public event Action<bool> BlockedChanged;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetState() => IsBlocked = false;
+        public void SetBlocked(bool blocked)
+        {
+            if (IsBlocked == blocked) return;
+            IsBlocked = blocked;
+            BlockedChanged?.Invoke(blocked);
+        }
     }
 }

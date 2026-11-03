@@ -11,16 +11,14 @@ namespace Game.Tests.EditMode
     public sealed class NetPropProtocolTests
     {
         private FakeTransport _transport;
+        private NetPropSender _sender;
 
         [SetUp]
         public void SetUp()
         {
             _transport = FakeTransport.Connected();
-            NetPropSender.Initialize(_transport);
+            _sender = new NetPropSender(_transport, new PacketWriter());
         }
-
-        [TearDown]
-        public void TearDown() => NetPropSender.Shutdown();
 
         [Test]
         public void SendManifest_MatchesFormat()
@@ -31,7 +29,7 @@ namespace Game.Tests.EditMode
                 new PropManifestEntry("Office/Desk/Eraser", Vector3.one * 0.05f, 0.1f)
             };
 
-            NetPropSender.SendManifest(entries);
+            _sender.SendManifest(entries);
 
             var expected = Bytes.Packet(PacketType.PropManifest).Str(FakeTransport.DefaultId).U16(2)
                 .Str("Office/Chair").V3(entries[0].HalfExtents).F32(8f)
@@ -42,7 +40,7 @@ namespace Game.Tests.EditMode
         [Test]
         public void SendManifest_Empty_SendsNothing()
         {
-            NetPropSender.SendManifest(new PropManifestEntry[0]);
+            _sender.SendManifest(new PropManifestEntry[0]);
 
             Assert.That(_transport.Sent, Is.Empty);
         }
@@ -50,7 +48,7 @@ namespace Game.Tests.EditMode
         [Test]
         public void SendPickupRequest_MatchesFormat()
         {
-            NetPropSender.SendPickupRequest(17);
+            _sender.SendPickupRequest(17);
 
             var expected = Bytes.Packet(PacketType.PropPickupRequest).Str(FakeTransport.DefaultId).I32(17);
             Assert.That(_transport.LastSent, Is.EqualTo((byte[])expected));
@@ -62,7 +60,7 @@ namespace Game.Tests.EditMode
             var velocity = new Vector3(1f, 2f, 3f);
             var angular = new Vector3(0f, -1f, 0f);
 
-            NetPropSender.SendRelease(5, velocity, angular);
+            _sender.SendRelease(5, velocity, angular);
 
             var expected = Bytes.Packet(PacketType.PropRelease).Str(FakeTransport.DefaultId).I32(5).V3(velocity).V3(angular).U8(0);
             Assert.That(_transport.LastSent, Is.EqualTo((byte[])expected));
@@ -75,7 +73,7 @@ namespace Game.Tests.EditMode
             var rotation = new Quaternion(0f, 0.7071068f, 0f, 0.7071068f);
             var velocity = new Vector3(0f, -9.8f, 0f);
 
-            NetPropSender.SendState(3, position, rotation, velocity, PropStateFlags.Held);
+            _sender.SendState(3, position, rotation, velocity, PropStateFlags.Held);
 
             var expected = Bytes.Packet(PacketType.PropState).Str(FakeTransport.DefaultId).I32(3)
                 .V3(position).Quat(rotation).V3(velocity).U8((byte)PropStateFlags.Held);
@@ -86,13 +84,13 @@ namespace Game.Tests.EditMode
         public void Send_BeforeIdAssigned_SendsNothing()
         {
             var transport = new FakeTransport();
-            NetPropSender.Initialize(transport);
+            var sender = new NetPropSender(transport, new PacketWriter());
 
-            NetPropSender.SendPickupRequest(1);
-            NetPropSender.SendRelease(1, Vector3.zero, Vector3.zero);
-            NetPropSender.SendState(1, Vector3.zero, Quaternion.identity, Vector3.zero, PropStateFlags.None);
+            sender.SendPickupRequest(1);
+            sender.SendRelease(1, Vector3.zero, Vector3.zero);
+            sender.SendState(1, Vector3.zero, Quaternion.identity, Vector3.zero, PropStateFlags.None);
 
-            Assert.That(NetPropSender.IsConnected, Is.False);
+            Assert.That(sender.IsConnected, Is.False);
             Assert.That(transport.Sent, Is.Empty);
         }
 
@@ -101,7 +99,7 @@ namespace Game.Tests.EditMode
         {
             var position = new Vector3(1f, 2f, 3f);
             var rotation = new Quaternion(0.5f, 0.5f, 0.5f, 0.5f);
-            NetPropSender.SendState(9, position, rotation, Vector3.one, PropStateFlags.Settled);
+            _sender.SendState(9, position, rotation, Vector3.one, PropStateFlags.Settled);
 
             Assert.That(NetPropReceiver.TryReadState(_transport.LastSent, out var state), Is.True);
             Assert.That(state.Sender, Is.EqualTo(FakeTransport.DefaultId));
@@ -114,7 +112,7 @@ namespace Game.Tests.EditMode
         [Test]
         public void TryReadState_Truncated_Fails()
         {
-            NetPropSender.SendState(9, Vector3.zero, Quaternion.identity, Vector3.zero, PropStateFlags.None);
+            _sender.SendState(9, Vector3.zero, Quaternion.identity, Vector3.zero, PropStateFlags.None);
 
             Assert.That(NetPropReceiver.TryReadState(Bytes.Truncated(_transport.LastSent), out _), Is.False);
         }

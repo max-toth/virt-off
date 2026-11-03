@@ -38,6 +38,20 @@ namespace Game.Tests.EditMode
         }
 
         [Test]
+        public void RepeatedIdAssigned_UpdatesIdButRaisesEventOnce()
+        {
+            var assigned = 0;
+            _manager.IdAssigned += () => assigned++;
+
+            _manager.Enqueue(IdPacket("1"));
+            _manager.Enqueue(IdPacket("2"));
+            _manager.ProcessIncoming();
+
+            Assert.That(assigned, Is.EqualTo(1));
+            Assert.That(_manager.LocalId, Is.EqualTo("2"));
+        }
+
+        [Test]
         public void IdAssigned_IsNotForwardedAsPacket()
         {
             var packets = 0;

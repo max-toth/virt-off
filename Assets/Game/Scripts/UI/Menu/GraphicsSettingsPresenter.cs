@@ -17,9 +17,11 @@ namespace Game.Scripts.UI.Menu
         private readonly Toggle _vsync;
         private readonly SliderBinding _fieldOfView;
         private readonly List<Resolution> _resolutions = new();
+        private readonly GameSettings _settings;
 
-        public GraphicsSettingsPresenter(VisualElement root)
+        public GraphicsSettingsPresenter(VisualElement root, GameSettings settings)
         {
+            _settings = settings;
             _screenMode = root.Q<DropdownField>("screenModeDropdown");
             _resolution = root.Q<DropdownField>("resolutionDropdown");
             _quality = root.Q<DropdownField>("qualityDropdown");
@@ -29,18 +31,18 @@ namespace Game.Scripts.UI.Menu
                 Screen.fullScreenMode = _screenMode.index == WindowedIndex ? FullScreenMode.Windowed : FullScreenMode.FullScreenWindow);
             _quality.RegisterValueChangedCallback(_ =>
             {
-                GameSettings.QualityLevel = _quality.index;
-                GameSettings.Apply();
+                _settings.QualityLevel = _quality.index;
+                _settings.Apply();
             });
             _vsync.RegisterValueChangedCallback(evt =>
             {
-                GameSettings.VSync = evt.newValue;
-                GameSettings.Apply();
+                _settings.VSync = evt.newValue;
+                _settings.Apply();
             });
             root.Q<Button>("applyResolutionButton").clicked += ApplyResolution;
 
             _fieldOfView = new SliderBinding(root, "fieldOfViewSlider", "fieldOfViewValue",
-                value => $"{value:F0}°", value => GameSettings.FieldOfView = Mathf.Round(value));
+                value => $"{value:F0}°", value => _settings.FieldOfView = Mathf.Round(value));
         }
 
         public void Load()
@@ -53,8 +55,8 @@ namespace Game.Scripts.UI.Menu
             _quality.SetValueWithoutNotify(qualityNames[QualitySettings.GetQualityLevel()]);
 
             LoadResolutions();
-            _vsync.SetValueWithoutNotify(GameSettings.VSync);
-            _fieldOfView.Show(GameSettings.FieldOfView);
+            _vsync.SetValueWithoutNotify(_settings.VSync);
+            _fieldOfView.Show(_settings.FieldOfView);
         }
 
         private void LoadResolutions()

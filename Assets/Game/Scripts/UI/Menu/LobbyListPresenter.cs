@@ -20,32 +20,41 @@ namespace Game.Scripts.UI.Menu
         private readonly VisualTreeAsset _rowTemplate;
         private readonly PlayerRowView _self;
         private readonly List<KeyValuePair<LobbyPlayer, PlayerRowView>> _others = new();
+        private readonly Lobby _lobby;
+        private readonly INetTransport _transport;
+        private readonly GameSettings _settings;
+        private readonly VoiceManager _voice;
         private bool _connected;
         private bool _dirty = true;
 
-        public LobbyListPresenter(VisualElement root, VisualTreeAsset rowTemplate)
+        public LobbyListPresenter(VisualElement root, VisualTreeAsset rowTemplate, Lobby lobby, INetTransport transport,
+            GameSettings settings, VoiceManager voice)
         {
+            _lobby = lobby;
+            _transport = transport;
+            _settings = settings;
+            _voice = voice;
             _connection = root.Q<Label>("connectionLabel");
             _count = root.Q<Label>("lobbyCountLabel");
             _hint = root.Q<Label>("playerListHint");
             _list = root.Q<ScrollView>("playerList");
             _rowTemplate = rowTemplate;
-            _self = new PlayerRowView(rowTemplate, () => GameSettings.MicMuted = !GameSettings.MicMuted);
+            _self = new PlayerRowView(rowTemplate, () => _settings.MicMuted = !_settings.MicMuted);
 
-            Lobby.PlayerJoined += OnLobbyChanged;
-            Lobby.PlayerLeft += OnLobbyChanged;
+            _lobby.PlayerJoined += OnLobbyChanged;
+            _lobby.PlayerLeft += OnLobbyChanged;
         }
 
         public void Dispose()
         {
-            Lobby.PlayerJoined -= OnLobbyChanged;
-            Lobby.PlayerLeft -= OnLobbyChanged;
+            _lobby.PlayerJoined -= OnLobbyChanged;
+            _lobby.PlayerLeft -= OnLobbyChanged;
         }
 
         public void Update()
         {
-            var connected = GameNet.TryGetConnected(out var manager);
-            if (_dirty || connected != _connected) Rebuild(connected, manager);
+            var connected = _transport.IsConnected;
+            if (_dirty || connected != _connected) Rebuild(connected);
             if (!connected) return;
 
             ShowSelf();
@@ -54,7 +63,7 @@ namespace Game.Scripts.UI.Menu
 
         private void OnLobbyChanged(string id) => _dirty = true;
 
-        private void Rebuild(bool connected, INetTransport manager)
+        private void Rebuild(bool connected)
         {
             _dirty = false;
             _connected = connected;
@@ -69,10 +78,10 @@ namespace Game.Scripts.UI.Menu
                 return;
             }
 
-            _self.SetName($"Вы (игрок {manager.LocalId})");
+            _self.SetName($"Вы (игрок {_transport.LocalId})");
             _list.Add(_self.Root);
 
-            foreach (var player in Lobby.Players.OrderBy(player => player.Id, StringComparer.Ordinal))
+            foreach (var player in _lobby.Players.OrderBy(player => player.Id, StringComparer.Ordinal))
             {
                 var view = new PlayerRowView(_rowTemplate, () => player.Muted = !player.Muted);
                 view.SetName($"Игрок {player.Id}");
@@ -92,17 +101,18 @@ namespace Game.Scripts.UI.Menu
 
         private void ShowSelf()
         {
-            var muted = GameSettings.MicMuted;
-            var speaking = !muted && VoiceManager.TryGetInstance(out var voice) && voice.IsReady && voice.MicLevel > SpeakingMicLevel;
+            var muted = _settings.MicMuted;
+            var speaking = !muted && _voice.IsReady && _voice.MicLevel > SpeakingMicLevel;
             _self.Show(muted, speaking,
                 muted ? "микрофон выключен" : speaking ? "говорите" : string.Empty,
                 muted ? "Включить микрофон" : "Выключить микрофон");
         }
 
-        private static void ShowOther(LobbyPlayer player, PlayerRowView view)
+        private void ShowOther(LobbyPlayer player, PlayerRowView view)
         {
-            view.Show(player.Muted, player.IsSpeaking,
-                player.Muted ? "заглушён" : player.IsSpeaking ? "говорит" : string.Empty,
+            var speaking = _lobby.IsSpeaking(player);
+            view.Show(player.Muted, speaking,
+                player.Muted ? "заглушён" : speaking ? "говорит" : string.Empty,
                 player.Muted ? "Включить звук" : "Заглушить");
         }
     }

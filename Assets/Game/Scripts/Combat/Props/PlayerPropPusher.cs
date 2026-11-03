@@ -1,4 +1,5 @@
 using UnityEngine;
+using VContainer;
 
 namespace Game.Scripts.Combat.Props
 {
@@ -11,6 +12,15 @@ namespace Game.Scripts.Combat.Props
         [SerializeField] private float pushPower = 1.2f;
 
         private CharacterController _controller;
+        private NetPropRegistry _registry;
+        private NetPropSender _sender;
+
+        [Inject]
+        public void Construct(NetPropRegistry registry, NetPropSender sender)
+        {
+            _registry = registry;
+            _sender = sender;
+        }
 
         private void Awake() => _controller = GetComponent<CharacterController>();
 
@@ -19,10 +29,10 @@ namespace Game.Scripts.Combat.Props
             var body = hit.rigidbody;
             if (body == null || hit.moveDirection.y < MinPushDirectionY) return;
 
-            if (NetProp.TryFind(hit.collider, out var prop))
+            if (_registry.TryFind(hit.collider, out var prop))
             {
                 if (prop.IsHeld) return;
-                prop.TakeOwnership(NetPropSender.LocalId);
+                prop.TakeOwnership(_sender.LocalId);
             }
 
             if (body.isKinematic) return;

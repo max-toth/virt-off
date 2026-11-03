@@ -11,36 +11,42 @@ namespace Game.Tests.EditMode
     public sealed class LobbyTests
     {
         private FakeTransport _transport;
+        private FakeClock _clock;
+        private Lobby _lobby;
         private List<string> _joined;
+        private List<string> _left;
 
         [SetUp]
         public void SetUp()
         {
-            Lobby.Shutdown();
             _transport = FakeTransport.Connected();
-            Lobby.Initialize(_transport.Router);
+            _clock = new FakeClock();
+            _lobby = new Lobby(_transport.Router, _clock);
+            _lobby.Initialize();
             _joined = new List<string>();
-            Lobby.PlayerJoined += _joined.Add;
+            _left = new List<string>();
+            _lobby.PlayerJoined += _joined.Add;
+            _lobby.PlayerLeft += _left.Add;
         }
 
         [TearDown]
-        public void TearDown() => Lobby.Shutdown();
+        public void TearDown() => _lobby.Dispose();
 
         [Test]
         public void VoiceOrPosition_FromNewPlayer_Joins()
         {
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("a").Raw(1));
+            _transport.Receive(Voice("a"));
             _transport.Receive(Bytes.Packet(PacketType.Position).Str("b").V3(Vector3.zero).F32(0f).U8(0));
 
             Assert.That(_joined, Is.EqualTo(new[] { "a", "b" }));
-            Assert.That(Lobby.Players.Select(player => player.Id), Is.EquivalentTo(new[] { "a", "b" }));
+            Assert.That(_lobby.Players.Select(player => player.Id), Is.EquivalentTo(new[] { "a", "b" }));
         }
 
         [Test]
         public void RepeatedPackets_JoinOnce()
         {
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("a").Raw(1));
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("a").Raw(2));
+            _transport.Receive(Voice("a"));
+            _transport.Receive(Voice("a"));
 
             Assert.That(_joined, Is.EqualTo(new[] { "a" }));
         }
@@ -48,10 +54,10 @@ namespace Game.Tests.EditMode
         [Test]
         public void OwnPackets_AreIgnored()
         {
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str(FakeTransport.DefaultId).Raw(1));
+            _transport.Receive(Voice(FakeTransport.DefaultId));
 
             Assert.That(_joined, Is.Empty);
-            Assert.That(Lobby.Players, Is.Empty);
+            Assert.That(_lobby.Players, Is.Empty);
         }
 
         [Test]
@@ -66,26 +72,72 @@ namespace Game.Tests.EditMode
         [Test]
         public void Mute_IsPerPlayer()
         {
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("a").Raw(1));
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("b").Raw(1));
+            _transport.Receive(Voice("a"));
+            _transport.Receive(Voice("b"));
 
-            Lobby.Players.Single(player => player.Id == "a").Muted = true;
+            _lobby.Players.Single(player => player.Id == "a").Muted = true;
 
-            Assert.That(Lobby.IsMuted("a"), Is.True);
-            Assert.That(Lobby.IsMuted("b"), Is.False);
-            Assert.That(Lobby.IsMuted("unknown"), Is.False);
+            Assert.That(_lobby.IsMuted("a"), Is.True);
+            Assert.That(_lobby.IsMuted("b"), Is.False);
+            Assert.That(_lobby.IsMuted("unknown"), Is.False);
         }
 
         [Test]
-        public void Shutdown_ForgetsPlayersAndUnsubscribes()
+        public void PlayerLeft_RemovesPlayerAtOnce()
         {
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("a").Raw(1));
+            _transport.Receive(Voice("a"));
 
-            Lobby.Shutdown();
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("b").Raw(1));
+            _transport.Receive(Bytes.Packet(PacketType.PlayerLeft).Str("a"));
 
-            Assert.That(Lobby.Players, Is.Empty);
-            Assert.That(_joined, Is.EqualTo(new[] { "a" }));
+            Assert.That(_left, Is.EqualTo(new[] { "a" }));
+            Assert.That(_lobby.Players, Is.Empty);
         }
+
+        [Test]
+        public void PlayerLeft_ForUnknownPlayer_IsIgnored()
+        {
+            _transport.Receive(Bytes.Packet(PacketType.PlayerLeft).Str("ghost"));
+
+            Assert.That(_left, Is.Empty);
+        }
+
+        [Test]
+        public void SilentPlayer_ExpiresAfterTimeout()
+        {
+            _transport.Receive(Voice("a"));
+
+            _clock.UnscaledTime = 4f;
+            _lobby.RemoveExpired();
+            Assert.That(_left, Is.Empty);
+
+            _clock.UnscaledTime = 10f;
+            _lobby.RemoveExpired();
+            Assert.That(_left, Is.EqualTo(new[] { "a" }));
+        }
+
+        [Test]
+        public void Speaking_HoldsForAMoment()
+        {
+            _transport.Receive(Voice("a"));
+            var player = _lobby.Players.Single();
+
+            _lobby.MarkSpeaking("a");
+            Assert.That(_lobby.IsSpeaking(player), Is.True);
+
+            _clock.UnscaledTime = 1f;
+            Assert.That(_lobby.IsSpeaking(player), Is.False);
+        }
+
+        [Test]
+        public void Dispose_Unsubscribes()
+        {
+            _lobby.Dispose();
+
+            _transport.Receive(Voice("b"));
+
+            Assert.That(_joined, Is.Empty);
+        }
+
+        private static byte[] Voice(string sender) => Bytes.Packet(PacketType.Voice).Str(sender).U16(0).Raw(1);
     }
 }

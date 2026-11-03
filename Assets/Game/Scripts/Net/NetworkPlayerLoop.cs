@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using UnityEngine;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
 
@@ -31,6 +32,8 @@ namespace Game.Scripts.Net
             PlayerLoop.SetPlayerLoop(root);
         }
 
+        // Без перезагрузки домена шаг переживает выход из Play Mode.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         public static void Uninstall()
         {
             var root = PlayerLoop.GetCurrentPlayerLoop();

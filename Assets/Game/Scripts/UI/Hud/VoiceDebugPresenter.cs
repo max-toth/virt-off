@@ -3,6 +3,7 @@ using Game.Scripts.Settings;
 using Game.Scripts.Voice;
 using UnityEngine;
 using UnityEngine.UIElements;
+using VContainer;
 
 namespace Game.Scripts.UI.Hud
 {
@@ -30,15 +31,24 @@ namespace Game.Scripts.UI.Hud
         private Label _volumeLabel;
 
         private VoiceManager _voice;
-        private bool _hasVoice;
         private VoiceReceiver _receiver;
-        private bool _hasReceiver;
+        private INetTransport _transport;
+        private GameSettings _settings;
 
         private string _shownId;
         private string _shownMic;
         private int _shownSpeakers = -1;
         private string _shownStatus;
         private float _shownVolume = -1f;
+
+        [Inject]
+        public void Construct(VoiceManager voice, VoiceReceiver receiver, INetTransport transport, GameSettings settings)
+        {
+            _voice = voice;
+            _receiver = receiver;
+            _transport = transport;
+            _settings = settings;
+        }
 
         private void Awake() => _waveform = new Texture2D(WaveformWidth, WaveformHeight, TextureFormat.RGB24, false);
 
@@ -54,17 +64,11 @@ namespace Game.Scripts.UI.Hud
             root.Q<Image>("voiceWaveform").image = _waveform;
         }
 
-        private void Start()
-        {
-            _hasVoice = VoiceManager.TryGetInstance(out _voice);
-            _hasReceiver = _hasVoice && _voice.TryGetComponent(out _receiver);
-        }
-
         private void OnDestroy() => Destroy(_waveform);
 
         private void Update()
         {
-            var visible = _hasVoice && GameNet.TryGetConnected(out _);
+            var visible = _transport.IsConnected;
             _panel.SetVisible(visible);
             if (!visible) return;
 
@@ -82,7 +86,7 @@ namespace Game.Scripts.UI.Hud
 
         private void ShowLabels()
         {
-            var id = GameNet.LocalId;
+            var id = _transport.LocalId;
             if (id != _shownId)
             {
                 _shownId = id;
@@ -96,7 +100,7 @@ namespace Game.Scripts.UI.Hud
                 _micLabel.text = $"Mic: {mic}";
             }
 
-            var speakers = _hasReceiver ? _receiver.ActiveStreamCount : 0;
+            var speakers = _receiver.ActiveStreamCount;
             if (speakers != _shownSpeakers)
             {
                 _shownSpeakers = speakers;
@@ -110,7 +114,7 @@ namespace Game.Scripts.UI.Hud
                 _statusLabel.text = $"Voice: {status}";
             }
 
-            var volume = GameSettings.VoiceVolume;
+            var volume = _settings.VoiceVolume;
             if (!Mathf.Approximately(volume, _shownVolume))
             {
                 _shownVolume = volume;
@@ -122,7 +126,7 @@ namespace Game.Scripts.UI.Hud
         {
             if (_voice.IsTesting) return "RECORDING (release R to play)";
             if (_voice.IsPlayingTest) return "PLAYBACK";
-            if (GameSettings.MicMuted) return "MUTED";
+            if (_settings.MicMuted) return "MUTED";
             return _voice.IsTransmitting ? "ACTIVE" : "idle";
         }
 

@@ -3,49 +3,45 @@ using Game.Scripts.Net;
 using Game.Scripts.Net.Packets;
 using Game.Scripts.Player.Sync.Models;
 using UnityEngine;
+using VContainer.Unity;
 
 namespace Game.Scripts.Player.Sync
 {
-    public static class PositionNetwork
+    public sealed class PositionNetwork : IInitializable, IDisposable
     {
         private const byte CrouchingFlag = 1;
 
-        private static INetTransport _transport;
-        private static PacketRouter _router;
+        private readonly INetTransport _transport;
+        private readonly PacketRouter _router;
+        private readonly PacketWriter _writer;
 
-        /// <summary>Позиция другого игрока (свои пакеты отбрасываются).</summary>
-        public static event Action<PositionMessage> Received;
-
-        public static bool IsConnected => _transport is { IsConnected: true };
-
-        public static void Initialize(INetTransport transport, PacketRouter router)
+        public PositionNetwork(INetTransport transport, PacketRouter router, PacketWriter writer)
         {
-            Unsubscribe();
             _transport = transport;
             _router = router;
-            router.Subscribe(PacketType.Position, OnPosition);
+            _writer = writer;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        public static void Shutdown()
-        {
-            Unsubscribe();
-            _transport = null;
-            Received = null;
-        }
+        /// <summary>Позиция другого игрока (свои пакеты отбрасываются).</summary>
+        public event Action<PositionMessage> Received;
+
+        public bool IsConnected => _transport.IsConnected;
+
+        public void Initialize() => _router.Subscribe(PacketType.Position, OnPosition);
+
+        public void Dispose() => _router.Unsubscribe(PacketType.Position, OnPosition);
 
         // POSITION: [type][sender:str][position:12][yaw:4][flags:1]
-        public static void Send(Vector3 position, float yaw, bool crouching)
+        public void Send(Vector3 position, float yaw, bool crouching)
         {
-            if (_transport is not { IsConnected: true } transport) return;
+            if (!_transport.IsConnected) return;
 
-            var writer = PacketWriter.Shared;
-            writer.Begin(PacketType.Position);
-            writer.WriteString(transport.LocalId);
-            writer.WriteVector3(position);
-            writer.WriteSingle(yaw);
-            writer.WriteByte(crouching ? CrouchingFlag : (byte)0);
-            writer.SendTo(transport);
+            _writer.Begin(PacketType.Position);
+            _writer.WriteString(_transport.LocalId);
+            _writer.WriteVector3(position);
+            _writer.WriteSingle(yaw);
+            _writer.WriteByte(crouching ? CrouchingFlag : (byte)0);
+            _writer.SendTo(_transport);
         }
 
         public static bool TryRead(byte[] data, out PositionMessage message)
@@ -60,13 +56,7 @@ namespace Game.Scripts.Player.Sync
             return !reader.Failed;
         }
 
-        private static void Unsubscribe()
-        {
-            _router?.Unsubscribe(PacketType.Position, OnPosition);
-            _router = null;
-        }
-
-        private static void OnPosition(string localId, byte[] data)
+        private void OnPosition(string localId, byte[] data)
         {
             if (TryRead(data, out var message) && message.Sender != localId) Received?.Invoke(message);
         }

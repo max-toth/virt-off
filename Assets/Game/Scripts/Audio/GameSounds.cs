@@ -3,12 +3,14 @@ using Game.Scripts.Audio.Models;
 using Game.Scripts.Audio.Synthesis;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VContainer.Unity;
 using Object = UnityEngine.Object;
 using Random = UnityEngine.Random;
 
 namespace Game.Scripts.Audio
 {
-    public static class GameSounds
+    /// <summary>Пул 3D-источников для коротких эффектов. Клипы — из Resources/Sounds, а если их нет — синтезированные.</summary>
+    public sealed class GameSounds : IInitializable, IDisposable
     {
         private const string ResourcesFolder = "Sounds";
         private const int PoolSize = 16;
@@ -16,18 +18,19 @@ namespace Game.Scripts.Audio
         private const int SeedOffset = 17;
 
         private static readonly string[] SfxNames = Enum.GetNames(typeof(Sfx));
-        private static readonly AudioClip[][] Clips = new AudioClip[SfxNames.Length][];
 
-        private static AudioSource[] _pool;
-        private static int _nextSource;
+        private readonly AudioClip[][] _clips = new AudioClip[SfxNames.Length][];
+        private GameObject _root;
+        private AudioSource[] _pool;
+        private int _nextSource;
 
         /// <summary>3D-звук в точке; к pitch добавляется случайный разброс ±8%. На сервере без графики ничего не делает.</summary>
-        public static void Play(Sfx sfx, Vector3 position, float volume = 1f, float pitch = 1f)
+        public void Play(Sfx sfx, Vector3 position, float volume = 1f, float pitch = 1f)
         {
             var index = (int)sfx;
-            if (_pool == null || (uint)index >= (uint)Clips.Length) return;
+            if (_pool == null || (uint)index >= (uint)_clips.Length) return;
 
-            var variants = Clips[index];
+            var variants = _clips[index];
             if (variants.Length == 0) return;
 
             var source = _pool[_nextSource];
@@ -40,18 +43,7 @@ namespace Game.Scripts.Audio
             source.Play();
         }
 
-        // Без перезагрузки домена (Enter Play Mode Options) статика переживает выход из Play Mode,
-        // а пул и сгенерированные клипы уничтожаются.
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetState()
-        {
-            Array.Clear(Clips, 0, Clips.Length);
-            _pool = null;
-            _nextSource = 0;
-        }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void Initialize()
+        public void Initialize()
         {
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) return;
 
@@ -59,9 +51,15 @@ namespace Game.Scripts.Audio
             CreatePool();
         }
 
-        private static void LoadClips()
+        public void Dispose()
         {
-            for (var i = 0; i < Clips.Length; i++)
+            if (_root != null) Object.Destroy(_root);
+            _pool = null;
+        }
+
+        private void LoadClips()
+        {
+            for (var i = 0; i < _clips.Length; i++)
             {
                 var sfx = (Sfx)i;
                 var clips = Resources.LoadAll<AudioClip>($"{ResourcesFolder}/{SfxNames[i]}");
@@ -69,20 +67,19 @@ namespace Game.Scripts.Audio
                 if (clips.Length == 0 && SfxSynthesizerFactory.TryCreate(sfx, out var synthesizer))
                     clips = new[] { ProceduralClip.Create($"gen_{sfx}", synthesizer, i + SeedOffset) };
 
-                Clips[i] = clips;
+                _clips[i] = clips;
             }
         }
 
-        private static void CreatePool()
+        private void CreatePool()
         {
-            var root = new GameObject(nameof(GameSounds));
-            Object.DontDestroyOnLoad(root);
+            _root = new GameObject(nameof(GameSounds));
 
             _pool = new AudioSource[PoolSize];
             for (var i = 0; i < PoolSize; i++)
             {
                 var child = new GameObject($"Source {i}");
-                child.transform.SetParent(root.transform, false);
+                child.transform.SetParent(_root.transform, false);
 
                 var source = child.AddComponent<AudioSource>();
                 source.playOnAwake = false;

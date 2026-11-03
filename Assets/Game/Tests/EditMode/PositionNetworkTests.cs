@@ -11,19 +11,20 @@ namespace Game.Tests.EditMode
     public sealed class PositionNetworkTests
     {
         private FakeTransport _transport;
+        private PositionNetwork _network;
         private List<PositionMessage> _received;
 
         [SetUp]
         public void SetUp()
         {
             _transport = FakeTransport.Connected();
-            PositionNetwork.Initialize(_transport, _transport.Router);
+            _network = Create(_transport);
             _received = new List<PositionMessage>();
-            PositionNetwork.Received += _received.Add;
+            _network.Received += _received.Add;
         }
 
         [TearDown]
-        public void TearDown() => PositionNetwork.Shutdown();
+        public void TearDown() => _network.Dispose();
 
         [TestCase(false, (byte)0)]
         [TestCase(true, (byte)1)]
@@ -31,7 +32,7 @@ namespace Game.Tests.EditMode
         {
             var position = new Vector3(10f, 0.5f, -3f);
 
-            PositionNetwork.Send(position, 90f, crouching);
+            _network.Send(position, 90f, crouching);
 
             var expected = Bytes.Packet(PacketType.Position).Str(FakeTransport.DefaultId).V3(position).F32(90f).U8(flags);
             Assert.That(_transport.LastSent, Is.EqualTo((byte[])expected));
@@ -41,18 +42,18 @@ namespace Game.Tests.EditMode
         public void Send_BeforeIdAssigned_SendsNothing()
         {
             var transport = new FakeTransport();
-            PositionNetwork.Initialize(transport, transport.Router);
+            var network = Create(transport);
 
-            PositionNetwork.Send(Vector3.zero, 0f, false);
+            network.Send(Vector3.zero, 0f, false);
 
-            Assert.That(PositionNetwork.IsConnected, Is.False);
+            Assert.That(network.IsConnected, Is.False);
             Assert.That(transport.Sent, Is.Empty);
         }
 
         [Test]
         public void TryRead_ReadsAllFields()
         {
-            PositionNetwork.Send(new Vector3(1f, 2f, 3f), 45f, true);
+            _network.Send(new Vector3(1f, 2f, 3f), 45f, true);
 
             Assert.That(PositionNetwork.TryRead(_transport.LastSent, out var message), Is.True);
             Assert.That(message.Sender, Is.EqualTo(FakeTransport.DefaultId));
@@ -64,7 +65,7 @@ namespace Game.Tests.EditMode
         [Test]
         public void TryRead_Truncated_Fails()
         {
-            PositionNetwork.Send(Vector3.one, 0f, false);
+            _network.Send(Vector3.one, 0f, false);
 
             Assert.That(PositionNetwork.TryRead(Bytes.Truncated(_transport.LastSent), out _), Is.False);
         }
@@ -86,6 +87,13 @@ namespace Game.Tests.EditMode
             _transport.Receive(Bytes.Packet(PacketType.Voice).Str("other").V3(Vector3.zero).F32(0f).U8(0));
 
             Assert.That(_received, Is.Empty);
+        }
+
+        private static PositionNetwork Create(FakeTransport transport)
+        {
+            var network = new PositionNetwork(transport, transport.Router, new PacketWriter());
+            network.Initialize();
+            return network;
         }
     }
 }

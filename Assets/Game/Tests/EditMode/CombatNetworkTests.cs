@@ -12,19 +12,23 @@ namespace Game.Tests.EditMode
     public sealed class CombatNetworkTests
     {
         private FakeTransport _transport;
+        private CombatNetwork _network;
         private List<HitMessage> _hits;
+        private List<SoundMessage> _sounds;
 
         [SetUp]
         public void SetUp()
         {
             _transport = FakeTransport.Connected();
-            CombatNetwork.Initialize(_transport, _transport.Router);
+            _network = Create(_transport);
             _hits = new List<HitMessage>();
-            CombatNetwork.HitReceived += _hits.Add;
+            _sounds = new List<SoundMessage>();
+            _network.HitReceived += _hits.Add;
+            _network.SoundReceived += _sounds.Add;
         }
 
         [TearDown]
-        public void TearDown() => CombatNetwork.Shutdown();
+        public void TearDown() => _network.Dispose();
 
         [Test]
         public void SendHit_MatchesFormat()
@@ -32,7 +36,7 @@ namespace Game.Tests.EditMode
             var point = new Vector3(1f, 2f, 3f);
             var impulse = new Vector3(-4f, 5f, 0.5f);
 
-            CombatNetwork.SendHit(AttackKind.Slap, "target", point, impulse, true);
+            _network.SendHit(AttackKind.Slap, "target", point, impulse, true);
 
             var expected = Bytes.Packet(PacketType.Attack)
                 .Str(FakeTransport.DefaultId).U8((byte)AttackKind.Slap).Str("target").V3(point).V3(impulse).Bool(true);
@@ -42,7 +46,7 @@ namespace Game.Tests.EditMode
         [Test]
         public void SendHit_WithoutTarget_WritesEmptyString()
         {
-            CombatNetwork.SendHit(AttackKind.Punch, null, Vector3.zero, Vector3.zero);
+            _network.SendHit(AttackKind.Punch, null, Vector3.zero, Vector3.zero);
 
             Assert.That(CombatNetwork.TryReadHit(_transport.LastSent, out var hit), Is.True);
             Assert.That(hit.HasTarget, Is.False);
@@ -54,7 +58,7 @@ namespace Game.Tests.EditMode
         {
             var position = new Vector3(7f, 8f, 9f);
 
-            CombatNetwork.SendSound(Sfx.Impact, position, 0.75f);
+            _network.SendSound(Sfx.Impact, position, 0.75f);
 
             var expected = Bytes.Packet(PacketType.Sound)
                 .Str(FakeTransport.DefaultId).U8((byte)Sfx.Impact).V3(position).F32(0.75f);
@@ -65,10 +69,10 @@ namespace Game.Tests.EditMode
         public void Send_BeforeIdAssigned_SendsNothing()
         {
             var transport = new FakeTransport();
-            CombatNetwork.Initialize(transport, transport.Router);
+            var network = Create(transport);
 
-            CombatNetwork.SendHit(AttackKind.Punch, "x", Vector3.zero, Vector3.zero);
-            CombatNetwork.SendSound(Sfx.Miss, Vector3.zero, 1f);
+            network.SendHit(AttackKind.Punch, "x", Vector3.zero, Vector3.zero);
+            network.SendSound(Sfx.Miss, Vector3.zero, 1f);
 
             Assert.That(transport.Sent, Is.Empty);
         }
@@ -92,16 +96,15 @@ namespace Game.Tests.EditMode
         [Test]
         public void TryReadHit_Truncated_Fails()
         {
-            CombatNetwork.SendHit(AttackKind.Punch, "victim", Vector3.one, Vector3.one);
-            var data = _transport.LastSent;
+            _network.SendHit(AttackKind.Punch, "victim", Vector3.one, Vector3.one);
 
-            Assert.That(CombatNetwork.TryReadHit(Bytes.Truncated(data), out _), Is.False);
+            Assert.That(CombatNetwork.TryReadHit(Bytes.Truncated(_transport.LastSent), out _), Is.False);
         }
 
         [Test]
         public void TryReadSound_ReadsAllFields()
         {
-            CombatNetwork.SendSound(Sfx.Whoosh, new Vector3(1f, 2f, 3f), 0.5f);
+            _network.SendSound(Sfx.Whoosh, new Vector3(1f, 2f, 3f), 0.5f);
 
             Assert.That(CombatNetwork.TryReadSound(_transport.LastSent, out var sound), Is.True);
             Assert.That(sound.Sender, Is.EqualTo(FakeTransport.DefaultId));
@@ -145,15 +148,30 @@ namespace Game.Tests.EditMode
         }
 
         [Test]
-        public void Shutdown_Unsubscribes()
+        public void IncomingSound_FromOther_RaisesEvent_OwnIgnored()
         {
-            CombatNetwork.Shutdown();
+            _transport.Receive(Bytes.Packet(PacketType.Sound).Str("other").U8((byte)Sfx.Slap).V3(Vector3.one).F32(1f));
+            _transport.Receive(Bytes.Packet(PacketType.Sound).Str(FakeTransport.DefaultId).U8(0).V3(Vector3.one).F32(1f));
+
+            Assert.That(_sounds, Has.Count.EqualTo(1));
+            Assert.That(_sounds[0].Sfx, Is.EqualTo(Sfx.Slap));
+        }
+
+        [Test]
+        public void Dispose_Unsubscribes()
+        {
+            _network.Dispose();
 
             _transport.Receive(HitFrom("other"));
-            CombatNetwork.SendSound(Sfx.Punch, Vector3.zero, 1f);
 
             Assert.That(_hits, Is.Empty);
-            Assert.That(_transport.Sent, Is.Empty);
+        }
+
+        private static CombatNetwork Create(FakeTransport transport)
+        {
+            var network = new CombatNetwork(transport, transport.Router, new PacketWriter());
+            network.Initialize();
+            return network;
         }
 
         private static byte[] HitFrom(string attacker) =>

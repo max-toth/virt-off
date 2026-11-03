@@ -2,64 +2,43 @@ using System.Collections.Generic;
 using System.Linq;
 using Game.Scripts.Player;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using VContainer;
+using VContainer.Unity;
 using Object = UnityEngine.Object;
 
 namespace Game.Scripts.Combat.Props
 {
-    /// <summary>Предметы сцены и их локальные id. Порядок детерминирован (по позиции), чтобы id совпадали у всех клиентов.</summary>
-    public static class NetPropRegistry
+    /// <summary>Предметы сцены и их локальные id. Порядок детерминирован (по позиции), чтобы id совпадали у всех клиентов.
+    /// Живёт столько же, сколько сцена: предметы находятся при сборке контейнера.</summary>
+    public sealed class NetPropRegistry : IInitializable
     {
         private static readonly string[] Keywords = { "chair", "trashbin", "trash", "eraser", "notepad", "pencilholder" };
 
-        private static readonly List<NetProp> Props = new();
-        private static readonly Dictionary<int, NetProp> ByServerId = new();
-        private static readonly Dictionary<Collider, NetProp> ByCollider = new();
+        private readonly IObjectResolver _resolver;
+        private readonly List<NetProp> _props = new();
+        private readonly Dictionary<int, NetProp> _byServerId = new();
+        private readonly Dictionary<Collider, NetProp> _byCollider = new();
 
-        public static IReadOnlyList<NetProp> All => Props;
+        public NetPropRegistry(IObjectResolver resolver) => _resolver = resolver;
 
-        public static bool TryFind(Collider collider, out NetProp prop) => ByCollider.TryGetValue(collider, out prop);
+        public IReadOnlyList<NetProp> All => _props;
 
-        public static bool TryGetByServerId(int serverId, out NetProp prop) => ByServerId.TryGetValue(serverId, out prop);
+        public bool TryFind(Collider collider, out NetProp prop) => _byCollider.TryGetValue(collider, out prop);
 
-        public static void AssignServerId(int index, int serverId)
+        public bool TryGetByServerId(int serverId, out NetProp prop) => _byServerId.TryGetValue(serverId, out prop);
+
+        public void AssignServerId(int index, int serverId)
         {
-            if (index < 0 || index >= Props.Count) return;
+            if (index < 0 || index >= _props.Count) return;
 
-            var prop = Props[index];
-            if (prop.ServerId >= 0) ByServerId.Remove(prop.ServerId);
+            var prop = _props[index];
+            if (prop.ServerId >= 0) _byServerId.Remove(prop.ServerId);
             prop.ServerId = serverId;
-            ByServerId[serverId] = prop;
+            _byServerId[serverId] = prop;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetState()
+        public void Initialize()
         {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-            Clear();
-        }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void Initialize()
-        {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-            SceneManager.sceneLoaded += OnSceneLoaded;
-            RegisterSceneProps();
-        }
-
-        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode) => RegisterSceneProps();
-
-        private static void Clear()
-        {
-            Props.Clear();
-            ByServerId.Clear();
-            ByCollider.Clear();
-        }
-
-        private static void RegisterSceneProps()
-        {
-            Clear();
-
             var candidates = FindCandidates();
             candidates.Sort(CompareByPosition);
 
@@ -67,15 +46,16 @@ namespace Game.Scripts.Combat.Props
             {
                 var target = candidates[i].gameObject;
                 var prop = NetPropFactory.GetOrCreate(target);
+                _resolver.InjectGameObject(target);
                 prop.Id = i;
-                Props.Add(prop);
+                _props.Add(prop);
 
-                if (prop.ServerId >= 0) ByServerId[prop.ServerId] = prop;
+                if (prop.ServerId >= 0) _byServerId[prop.ServerId] = prop;
                 foreach (var collider in target.GetComponentsInChildren<Collider>(true))
-                    ByCollider[collider] = prop;
+                    _byCollider[collider] = prop;
             }
 
-            if (Props.Count > 0) NetPropDiagnostics.Log($"Physical props: {Props.Count}");
+            if (_props.Count > 0) NetPropDiagnostics.Log($"Physical props: {_props.Count}");
         }
 
         private static List<Transform> FindCandidates() =>

@@ -10,54 +10,71 @@ namespace Game.Tests.EditMode
     public sealed class VoiceNetworkTests
     {
         private FakeTransport _transport;
+        private VoiceNetwork _network;
         private List<VoicePacket> _received;
 
         [SetUp]
         public void SetUp()
         {
             _transport = FakeTransport.Connected();
-            VoiceNetwork.Initialize(_transport, _transport.Router);
+            _network = Create(_transport);
             _received = new List<VoicePacket>();
-            VoiceNetwork.Received += _received.Add;
+            _network.Received += _received.Add;
         }
 
         [TearDown]
-        public void TearDown() => VoiceNetwork.Shutdown();
+        public void TearDown() => _network.Dispose();
 
         [Test]
         public void Send_MatchesFormat()
         {
             var opus = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD };
 
-            VoiceNetwork.Send(opus, 3);
+            _network.Send(opus, 3);
 
-            var expected = Bytes.Packet(PacketType.Voice).Str(FakeTransport.DefaultId).Raw(0xAA, 0xBB, 0xCC);
+            var expected = Bytes.Packet(PacketType.Voice).Str(FakeTransport.DefaultId).U16(0).Raw(0xAA, 0xBB, 0xCC);
             Assert.That(_transport.LastSent, Is.EqualTo((byte[])expected));
+        }
+
+        [Test]
+        public void Send_NumbersFramesInOrder()
+        {
+            _network.Send(new byte[] { 1 }, 1);
+            _network.Send(new byte[] { 1 }, 1);
+            _network.Send(new byte[] { 1 }, 1);
+
+            for (var i = 0; i < 3; i++)
+            {
+                Assert.That(VoiceNetwork.TryRead(_transport.Sent[i], out var packet), Is.True);
+                Assert.That(packet.Sequence, Is.EqualTo(i));
+            }
         }
 
         [Test]
         public void TryRead_PointsToOpusPayload()
         {
-            byte[] data = Bytes.Packet(PacketType.Voice).Str("other").Raw(1, 2, 3, 4, 5);
+            byte[] data = Bytes.Packet(PacketType.Voice).Str("other").U16(513).Raw(1, 2, 3, 4, 5);
 
             Assert.That(VoiceNetwork.TryRead(data, out var packet), Is.True);
             Assert.That(packet.Sender, Is.EqualTo("other"));
+            Assert.That(packet.Sequence, Is.EqualTo(513));
             Assert.That(packet.Data, Is.SameAs(data));
-            Assert.That(packet.Offset, Is.EqualTo(1 + 1 + "other".Length));
+            Assert.That(packet.Offset, Is.EqualTo(1 + 1 + "other".Length + 2));
             Assert.That(packet.Count, Is.EqualTo(5));
         }
 
         [Test]
-        public void TryRead_WithoutSender_Fails()
+        public void TryRead_WithoutSequence_Fails()
         {
             Assert.That(VoiceNetwork.TryRead(new[] { PacketType.Voice }, out _), Is.False);
+            Assert.That(VoiceNetwork.TryRead(Bytes.Packet(PacketType.Voice).Str("other").U8(1), out _), Is.False);
         }
 
         [Test]
         public void Incoming_FromOther_RaisesReceived_OwnIgnored()
         {
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("other").Raw(9));
-            _transport.Receive(Bytes.Packet(PacketType.Voice).Str(FakeTransport.DefaultId).Raw(9));
+            _transport.Receive(Bytes.Packet(PacketType.Voice).Str("other").U16(0).Raw(9));
+            _transport.Receive(Bytes.Packet(PacketType.Voice).Str(FakeTransport.DefaultId).U16(0).Raw(9));
 
             Assert.That(_received, Has.Count.EqualTo(1));
             Assert.That(_received[0].Sender, Is.EqualTo("other"));
@@ -67,32 +84,40 @@ namespace Game.Tests.EditMode
         public void Connected_RaisedOnIdAssigned()
         {
             var transport = new FakeTransport();
-            VoiceNetwork.Initialize(transport, transport.Router);
+            var network = Create(transport);
             var connected = 0;
-            VoiceNetwork.Connected += () => connected++;
+            network.Connected += () => connected++;
 
-            Assert.That(VoiceNetwork.IsConnected, Is.False);
+            Assert.That(network.IsConnected, Is.False);
             transport.AssignId("late");
 
             Assert.That(connected, Is.EqualTo(1));
-            Assert.That(VoiceNetwork.IsConnected, Is.True);
+            Assert.That(network.IsConnected, Is.True);
         }
 
         [Test]
-        public void Reinitialize_UnsubscribesFromPreviousTransport()
+        public void Dispose_Unsubscribes()
         {
-            var first = new FakeTransport();
-            VoiceNetwork.Initialize(first, first.Router);
+            var transport = new FakeTransport();
+            var network = Create(transport);
             var connected = 0;
-            VoiceNetwork.Connected += () => connected++;
+            network.Connected += () => connected++;
+            var received = 0;
+            network.Received += _ => received++;
 
-            var second = new FakeTransport();
-            VoiceNetwork.Initialize(second, second.Router);
-            first.AssignId("stale");
-            first.Receive(Bytes.Packet(PacketType.Voice).Str("other").Raw(9));
+            network.Dispose();
+            transport.AssignId("late");
+            transport.Receive(Bytes.Packet(PacketType.Voice).Str("other").U16(0).Raw(9));
 
             Assert.That(connected, Is.Zero);
-            Assert.That(_received, Is.Empty);
+            Assert.That(received, Is.Zero);
+        }
+
+        private static VoiceNetwork Create(FakeTransport transport)
+        {
+            var network = new VoiceNetwork(transport, transport.Router, new PacketWriter());
+            network.Initialize();
+            return network;
         }
     }
 }

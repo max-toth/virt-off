@@ -1,5 +1,3 @@
-using UnityEngine;
-
 namespace Game.Scripts.Net.Models
 {
     public sealed class LobbyPlayer
@@ -12,9 +10,11 @@ namespace Game.Scripts.Net.Models
 
         public string Id { get; }
         public bool Muted { get; set; }
-        public bool IsSpeaking => Time.unscaledTime - _lastVoiceTime < SpeakingHoldSeconds;
         internal float LastSeen { get; set; }
 
-        internal void MarkSpeaking() => _lastVoiceTime = Time.unscaledTime;
+        /// <param name="now">Время по IClock.UnscaledTime.</param>
+        public bool IsSpeaking(float now) => now - _lastVoiceTime < SpeakingHoldSeconds;
+
+        internal void MarkSpeaking(float now) => _lastVoiceTime = now;
     }
 }

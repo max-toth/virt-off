@@ -24,9 +24,13 @@ namespace Game.Scripts.UI.Menu
         private readonly SliderBinding _gain;
         private readonly SliderBinding _masterVolume;
         private readonly SliderBinding _voiceVolume;
+        private readonly GameSettings _settings;
+        private readonly VoiceManager _voice;
 
-        public AudioSettingsPresenter(VisualElement root)
+        public AudioSettingsPresenter(VisualElement root, GameSettings settings, VoiceManager voice)
         {
+            _settings = settings;
+            _voice = voice;
             _micDropdown = root.Q<DropdownField>("micDropdown");
             _noMicLabel = root.Q<Label>("noMicLabel");
             _levelBar = root.Q<ProgressBar>("micLevelBar");
@@ -34,43 +38,42 @@ namespace Game.Scripts.UI.Menu
             _testButton = root.Q<Button>("micTestButton");
             _testHint = root.Q<Label>("micTestHint");
 
-            _micDropdown.RegisterValueChangedCallback(evt => GameSettings.MicDevice = evt.newValue);
-            _mutedToggle.RegisterValueChangedCallback(evt => GameSettings.MicMuted = evt.newValue);
+            _micDropdown.RegisterValueChangedCallback(evt => _settings.MicDevice = evt.newValue);
+            _mutedToggle.RegisterValueChangedCallback(evt => _settings.MicMuted = evt.newValue);
             _testButton.clicked += ToggleMicTest;
             root.Q<Button>("micRefreshButton").clicked += ShowDevices;
             root.Q<Button>("osSoundButton").clicked += OpenOsSoundSettings;
 
-            _gain = new SliderBinding(root, "micGainSlider", "micGainValue", SliderBinding.Percent, value => GameSettings.MicGain = value);
+            _gain = new SliderBinding(root, "micGainSlider", "micGainValue", SliderBinding.Percent, value => _settings.MicGain = value);
             _masterVolume = new SliderBinding(root, "masterVolumeSlider", "masterVolumeValue", SliderBinding.Percent, value =>
             {
-                GameSettings.MasterVolume = value;
-                GameSettings.Apply();
+                _settings.MasterVolume = value;
+                _settings.Apply();
             });
-            _voiceVolume = new SliderBinding(root, "voiceVolumeSlider", "voiceVolumeValue", SliderBinding.Percent, value => GameSettings.VoiceVolume = value);
+            _voiceVolume = new SliderBinding(root, "voiceVolumeSlider", "voiceVolumeValue", SliderBinding.Percent, value => _settings.VoiceVolume = value);
         }
 
         public void Load()
         {
             ShowDevices();
-            _gain.Show(GameSettings.MicGain);
-            _masterVolume.Show(GameSettings.MasterVolume);
-            _voiceVolume.Show(GameSettings.VoiceVolume);
+            _gain.Show(_settings.MicGain);
+            _masterVolume.Show(_settings.MasterVolume);
+            _voiceVolume.Show(_settings.VoiceVolume);
         }
 
         public void Update()
         {
-            var hasVoice = VoiceManager.TryGetInstance(out var voice);
-            var level = hasVoice ? Mathf.Clamp01(voice.MicLevel) : 0f;
+            var level = Mathf.Clamp01(_voice.MicLevel);
             _levelBar.value = level;
             _levelBar.EnableInClassList(WarningClass, level is > WarningLevel and <= DangerLevel);
             _levelBar.EnableInClassList(DangerClass, level > DangerLevel);
 
-            _mutedToggle.SetValueWithoutNotify(GameSettings.MicMuted);
+            _mutedToggle.SetValueWithoutNotify(_settings.MicMuted);
 
-            var testAvailable = hasVoice && voice.IsReady;
+            var testAvailable = _voice.IsReady;
             _testButton.SetVisible(testAvailable);
             _testHint.SetVisible(!testAvailable);
-            if (testAvailable) _testButton.text = voice.IsTesting ? StopTestText : StartTestText;
+            if (testAvailable) _testButton.text = _voice.IsTesting ? StopTestText : StartTestText;
         }
 
         private void ShowDevices()
@@ -78,16 +81,15 @@ namespace Game.Scripts.UI.Menu
             var devices = Microphone.devices;
             var hasDevices = devices.Length > 0;
             _micDropdown.choices = new List<string>(devices);
-            _micDropdown.SetValueWithoutNotify(GameSettings.ResolveMicDevice() ?? string.Empty);
+            _micDropdown.SetValueWithoutNotify(_settings.ResolveMicDevice() ?? string.Empty);
             _micDropdown.SetEnabled(hasDevices);
             _noMicLabel.SetVisible(!hasDevices);
         }
 
-        private static void ToggleMicTest()
+        private void ToggleMicTest()
         {
-            if (!VoiceManager.TryGetInstance(out var voice)) return;
-            if (voice.IsTesting) voice.StopMicTest();
-            else voice.StartMicTest();
+            if (_voice.IsTesting) _voice.StopMicTest();
+            else _voice.StartMicTest();
         }
 
         private static void OpenOsSoundSettings()

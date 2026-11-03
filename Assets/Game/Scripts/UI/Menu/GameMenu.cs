@@ -1,10 +1,12 @@
-using System;
 using Game.Scripts.Controls;
+using Game.Scripts.Net;
 using Game.Scripts.Player;
 using Game.Scripts.Settings;
+using Game.Scripts.Voice;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
+using VContainer;
 using Cursor = UnityEngine.Cursor;
 
 namespace Game.Scripts.UI.Menu
@@ -25,14 +27,29 @@ namespace Game.Scripts.UI.Menu
         private Button _quitButton;
         private Button _respawnButton;
         private LobbyListPresenter _lobby;
-        private SettingsPresenter _settings;
+        private SettingsPresenter _settingsPresenter;
         private bool _settingsShown;
+        private GameplayInput _input;
+        private GameSettings _settings;
+        private PlayerController _player;
+        private Lobby _lobbyService;
+        private INetTransport _transport;
+        private VoiceManager _voice;
 
         /// <summary>Меню открыто; игровой ввод в это время заблокирован через GameplayInput.</summary>
-        public static bool IsOpen { get; private set; }
+        public bool IsOpen { get; private set; }
 
-        /// <summary>Меню открылось или закрылось; аргумент — открыто ли.</summary>
-        public static event Action<bool> OpenChanged;
+        [Inject]
+        public void Construct(GameplayInput input, GameSettings settings, PlayerController player, Lobby lobby,
+            INetTransport transport, VoiceManager voice)
+        {
+            _input = input;
+            _settings = settings;
+            _player = player;
+            _lobbyService = lobby;
+            _transport = transport;
+            _voice = voice;
+        }
 
         private void OnEnable()
         {
@@ -52,8 +69,8 @@ namespace Game.Scripts.UI.Menu
             _quitButton.clicked += () => SetQuitConfirmation(true);
             _respawnButton.clicked += Respawn;
 
-            _lobby = new LobbyListPresenter(root, playerRowTemplate);
-            _settings = new SettingsPresenter(root, ShowMain);
+            _lobby = new LobbyListPresenter(root, playerRowTemplate, _lobbyService, _transport, _settings, _voice);
+            _settingsPresenter = new SettingsPresenter(root, ShowMain, _settings, _voice);
             _menuRoot.SetVisible(IsOpen);
         }
 
@@ -62,10 +79,10 @@ namespace Game.Scripts.UI.Menu
         private void OnDestroy()
         {
             IsOpen = false;
-            GameplayInput.SetBlocked(false);
+            _input?.SetBlocked(false);
         }
 
-        private void OnApplicationQuit() => GameSettings.Save();
+        private void OnApplicationQuit() => _settings.Save();
 
         private void Update()
         {
@@ -74,19 +91,12 @@ namespace Game.Scripts.UI.Menu
             if (!IsOpen) return;
 
             _lobby.Update();
-            _settings.Update();
+            _settingsPresenter.Update();
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetState()
+        private void Quit()
         {
-            IsOpen = false;
-            OpenChanged = null;
-        }
-
-        private static void Quit()
-        {
-            GameSettings.Save();
+            _settings.Save();
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -105,8 +115,8 @@ namespace Game.Scripts.UI.Menu
         {
             SetOpen(true);
             ShowMain();
-            _settings.Load();
-            _respawnButton.SetEnabled(PlayerController.Local != null);
+            _settingsPresenter.Load();
+            _respawnButton.SetEnabled(_player != null);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
@@ -114,21 +124,20 @@ namespace Game.Scripts.UI.Menu
         private void Close()
         {
             SetOpen(false);
-            if (PlayerController.ControlsActive)
+            if (_player.ControlsActive)
             {
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
             }
 
-            GameSettings.Save();
+            _settings.Save();
         }
 
         private void SetOpen(bool open)
         {
             IsOpen = open;
-            GameplayInput.SetBlocked(open);
+            _input.SetBlocked(open);
             _menuRoot.SetVisible(open);
-            OpenChanged?.Invoke(open);
         }
 
         private void ShowMain()
@@ -156,8 +165,7 @@ namespace Game.Scripts.UI.Menu
 
         private void Respawn()
         {
-            var player = PlayerController.Local;
-            if (player != null) player.Respawn();
+            _player.Respawn();
             Close();
         }
     }

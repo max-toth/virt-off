@@ -14,9 +14,11 @@ namespace Game.Scripts.Player.Sync
         private readonly float _prefabScale;
         private readonly GameObject _template;
         private readonly bool _hasTemplate;
+        private readonly RemotePlayers _registry;
 
-        public RemoteAvatarFactory(Transform localPlayer, GameObject[] prefabs, float prefabScale)
+        public RemoteAvatarFactory(Transform localPlayer, GameObject[] prefabs, float prefabScale, RemotePlayers registry)
         {
+            _registry = registry;
             _prefabs = prefabs;
             _prefabScale = prefabScale;
             _hasTemplate = TryCreateTemplate(localPlayer, out _template);
@@ -27,7 +29,7 @@ namespace Game.Scripts.Player.Sync
             var rotation = Quaternion.Euler(0f, yaw, 0f);
             var avatar = Instantiate(id, position, rotation);
             avatar.name = $"RemotePlayer_{id}";
-            RemoteAvatar.Attach(avatar, id);
+            RemoteAvatar.Attach(avatar, id, _registry);
             avatar.TryGetComponent(out ProceduralWalk walk);
             return new RemotePlayer(avatar.transform, walk);
         }

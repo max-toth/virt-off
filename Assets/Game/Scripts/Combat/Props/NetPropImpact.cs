@@ -5,6 +5,7 @@ using Game.Scripts.Audio.Models;
 using Game.Scripts.Combat.Models;
 using Game.Scripts.Player.Sync;
 using UnityEngine;
+using VContainer;
 
 namespace Game.Scripts.Combat.Props
 {
@@ -28,6 +29,22 @@ namespace Game.Scripts.Combat.Props
         private readonly Dictionary<string, float> _lastAvatarHitTime = new(StringComparer.Ordinal);
         private NetProp _prop;
         private float _lastSoundTime;
+        private NetPropRegistry _registry;
+        private RemotePlayers _remotePlayers;
+        private CombatNetwork _network;
+        private CombatSounds _combatSounds;
+        private GameSounds _sounds;
+
+        [Inject]
+        public void Construct(NetPropRegistry registry, RemotePlayers remotePlayers, CombatNetwork network,
+            CombatSounds combatSounds, GameSounds sounds)
+        {
+            _registry = registry;
+            _remotePlayers = remotePlayers;
+            _network = network;
+            _combatSounds = combatSounds;
+            _sounds = sounds;
+        }
 
         private void Awake() => _prop = GetComponent<NetProp>();
 
@@ -45,7 +62,7 @@ namespace Game.Scripts.Combat.Props
 
         private void PushOtherProp(Collision collision, float speed, Vector3 point)
         {
-            if (speed <= PushPropSpeed || !NetProp.TryFind(collision.collider, out var other) || other.HasAuthority) return;
+            if (speed <= PushPropSpeed || !_registry.TryFind(collision.collider, out var other) || other.HasAuthority) return;
 
             other.LastThrower = _prop.LastThrower;
             other.Body.AddForceAtPosition(
@@ -59,14 +76,14 @@ namespace Game.Scripts.Combat.Props
             _lastSoundTime = Time.time;
             var volume = Mathf.Clamp01(speed / SoundMaxSpeed);
             var pitch = Mathf.Lerp(1.3f, 0.8f, Mathf.Clamp01(_prop.Body.mass / HeavyPropMass));
-            GameSounds.Play(Sfx.Impact, point, volume, pitch);
-            CombatNetwork.SendSound(Sfx.Impact, point, volume);
+            _sounds.Play(Sfx.Impact, point, volume, pitch);
+            _network.SendSound(Sfx.Impact, point, volume);
         }
 
         private void TryHitRemoteAvatar(Collision collision, float speed, Vector3 point)
         {
             if (speed <= AvatarHitSpeed || string.IsNullOrEmpty(_prop.LastThrower)) return;
-            if (!RemoteAvatar.TryFind(collision.collider, out var avatar)) return;
+            if (!_remotePlayers.TryFindAvatar(collision.collider, out var avatar)) return;
             if (_lastAvatarHitTime.TryGetValue(avatar.Id, out var lastHit) && Time.time - lastHit < AvatarHitInterval) return;
             _lastAvatarHitTime[avatar.Id] = Time.time;
 
@@ -77,8 +94,8 @@ namespace Game.Scripts.Combat.Props
             direction.y = Mathf.Max(direction.y, AvatarHitMinUpward);
 
             var force = Mathf.Clamp(speed * body.mass * AvatarHitForceFactor, AvatarHitMinForce, AvatarHitMaxForce);
-            CombatSounds.PlayHit(AttackKind.Prop, true, false, point);
-            CombatNetwork.SendHit(AttackKind.Prop, avatar.Id, point, direction.normalized * force);
+            _combatSounds.PlayHit(AttackKind.Prop, true, false, point);
+            _network.SendHit(AttackKind.Prop, avatar.Id, point, direction.normalized * force);
         }
     }
 }

@@ -1,27 +1,50 @@
+using System;
+using Game.Scripts.Audio;
 using Game.Scripts.Combat.Models;
 using Game.Scripts.Player.Sync;
-using UnityEngine;
+using VContainer.Unity;
 
 namespace Game.Scripts.Combat
 {
-    public static class RemoteCombatPresenter
+    /// <summary>Удары и звуки других игроков: анимация чужих аватаров и звук в точке.</summary>
+    public sealed class RemoteCombatPresenter : IInitializable, IDisposable
     {
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void Initialize()
+        private readonly CombatNetwork _network;
+        private readonly RemotePlayers _remotePlayers;
+        private readonly CombatSounds _combatSounds;
+        private readonly GameSounds _sounds;
+
+        public RemoteCombatPresenter(CombatNetwork network, RemotePlayers remotePlayers, CombatSounds combatSounds, GameSounds sounds)
         {
-            CombatNetwork.HitReceived -= OnHitReceived;
-            CombatNetwork.HitReceived += OnHitReceived;
+            _network = network;
+            _remotePlayers = remotePlayers;
+            _combatSounds = combatSounds;
+            _sounds = sounds;
         }
 
-        private static void OnHitReceived(HitMessage hit)
+        public void Initialize()
         {
-            if (hit.Kind != AttackKind.Prop && RemotePlayers.TryGetWalk(hit.Attacker, out var attackerWalk))
+            _network.HitReceived += OnHitReceived;
+            _network.SoundReceived += OnSoundReceived;
+        }
+
+        public void Dispose()
+        {
+            _network.HitReceived -= OnHitReceived;
+            _network.SoundReceived -= OnSoundReceived;
+        }
+
+        private void OnHitReceived(HitMessage hit)
+        {
+            if (hit.Kind != AttackKind.Prop && _remotePlayers.TryGetWalk(hit.Attacker, out var attackerWalk))
                 attackerWalk.PlayAttack(hit.Kind == AttackKind.Slap);
 
-            CombatSounds.PlayHit(hit.Kind, hit.HasTarget, hit.HitObject, hit.Point);
+            _combatSounds.PlayHit(hit.Kind, hit.HasTarget, hit.HitObject, hit.Point);
 
-            if (hit.HasTarget && RemotePlayers.TryGetWalk(hit.Target, out var victimWalk))
+            if (hit.HasTarget && _remotePlayers.TryGetWalk(hit.Target, out var victimWalk))
                 victimWalk.PlayHit();
         }
+
+        private void OnSoundReceived(SoundMessage sound) => _sounds.Play(sound.Sfx, sound.Position, sound.Volume);
     }
 }

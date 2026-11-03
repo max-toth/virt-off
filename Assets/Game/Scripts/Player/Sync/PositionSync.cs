@@ -2,6 +2,7 @@ using System;
 using Game.Scripts.Net;
 using Game.Scripts.Player.Sync.Models;
 using UnityEngine;
+using VContainer;
 
 namespace Game.Scripts.Player.Sync
 {
@@ -17,60 +18,68 @@ namespace Game.Scripts.Player.Sync
         [SerializeField] private float smoothing = 15f;
 
         private PlayerController _player;
+        private PositionNetwork _network;
+        private Lobby _lobby;
+        private RemotePlayers _remotePlayers;
         private RemoteAvatarFactory _avatarFactory;
         private float _sendTimer;
 
-        private void Awake()
+        [Inject]
+        public void Construct(PositionNetwork network, Lobby lobby, RemotePlayers remotePlayers)
         {
-            _player = GetComponent<PlayerController>();
+            _network = network;
+            _lobby = lobby;
+            _remotePlayers = remotePlayers;
         }
+
+        private void Awake() => _player = GetComponent<PlayerController>();
 
         private void Start()
         {
-            _avatarFactory = new RemoteAvatarFactory(transform, avatarPrefabs, avatarScale);
-            PositionNetwork.Received += OnPositionReceived;
-            Lobby.PlayerLeft += OnPlayerLeft;
+            _avatarFactory = new RemoteAvatarFactory(transform, avatarPrefabs, avatarScale, _remotePlayers);
+            _network.Received += OnPositionReceived;
+            _lobby.PlayerLeft += OnPlayerLeft;
         }
 
         private void OnDestroy()
         {
-            PositionNetwork.Received -= OnPositionReceived;
-            Lobby.PlayerLeft -= OnPlayerLeft;
+            if (_network != null) _network.Received -= OnPositionReceived;
+            if (_lobby != null) _lobby.PlayerLeft -= OnPlayerLeft;
             _avatarFactory?.Dispose();
-            RemotePlayers.Clear();
+            _remotePlayers?.Clear();
         }
 
         private void Update()
         {
-            RemotePlayers.SmoothAll(1f - Mathf.Exp(-smoothing * Time.deltaTime));
+            _remotePlayers.SmoothAll(1f - Mathf.Exp(-smoothing * Time.deltaTime));
             SendLocalPosition();
         }
 
         private void SendLocalPosition()
         {
-            if (!PositionNetwork.IsConnected) return;
+            if (!_network.IsConnected) return;
 
             _sendTimer += Time.deltaTime;
             if (_sendTimer < sendInterval) return;
 
             _sendTimer = 0f;
-            PositionNetwork.Send(transform.position, transform.eulerAngles.y, _player.IsCrouching);
+            _network.Send(transform.position, transform.eulerAngles.y, _player.IsCrouching);
         }
 
         private void OnPositionReceived(PositionMessage message)
         {
-            if (!RemotePlayers.TryGet(message.Sender, out var remote))
+            if (!_remotePlayers.TryGet(message.Sender, out var remote))
             {
                 remote = _avatarFactory.Create(message.Sender, message.Position, message.Yaw);
-                RemotePlayers.Add(message.Sender, remote);
+                _remotePlayers.Add(message.Sender, remote);
             }
 
             remote.SetTarget(message.Position, message.Yaw, message.Crouching);
         }
 
-        private static void OnPlayerLeft(string id)
+        private void OnPlayerLeft(string id)
         {
-            if (RemotePlayers.Remove(id, out var remote) && remote.Root != null) Destroy(remote.Root.gameObject);
+            if (_remotePlayers.Remove(id, out var remote) && remote.Root != null) Destroy(remote.Root.gameObject);
         }
     }
 }
