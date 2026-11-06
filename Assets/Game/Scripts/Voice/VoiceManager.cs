@@ -38,7 +38,8 @@ namespace Game.Scripts.Voice
         public bool IsPlayingTest => _micTest.IsPlaying;
         /// <summary>Идёт отправка: микрофон включён и сейчас звучит речь.</summary>
         public bool IsTransmitting => !_settings.MicMuted && _capture.IsRecording && _gate.IsOpen;
-        public string MicDevice => _capture.Device;
+        /// <summary>Устройство или причина, по которой микрофон не работает: для отладочной панели.</summary>
+        public string MicStatus { get; private set; } = "not started (waiting for server)";
 
         [Inject]
         public void Construct(VoiceNetwork network, GameSettings settings, GameplayInput input)
@@ -83,6 +84,7 @@ namespace Game.Scripts.Voice
         {
             _micTest.Cancel();
             _capture.Stop();
+            MicStatus = "stopped";
         }
 
         private void OnDestroy()
@@ -159,11 +161,25 @@ namespace Game.Scripts.Voice
             _network.Connected -= OnConnected;
         }
 
+        // Пишется в лог всегда, без VOICE_DEBUG: иначе по логу билда не понять, почему нет голоса.
         private void StartMic()
         {
-            VoiceDiagnostics.Log(_capture.Start()
-                ? $"[Voice] Microphone started: {_capture.Device}"
-                : "[Voice] No microphone found");
+            if (_capture.Start())
+            {
+                MicStatus = _capture.Device;
+                Debug.Log($"[Voice] Microphone started: {_capture.Device}");
+                return;
+            }
+
+            if (_capture.Device == null)
+            {
+                MicStatus = "no devices";
+                Debug.LogWarning("[Voice] No microphone found: Microphone.devices is empty");
+                return;
+            }
+
+            MicStatus = $"{_capture.Device} (failed to start)";
+            Debug.LogWarning($"[Voice] Microphone failed to start: {_capture.Device}; devices: {string.Join(", ", Microphone.devices)}");
         }
 
         // До подключения микрофон не запущен: выбранное устройство подхватится в StartMic.

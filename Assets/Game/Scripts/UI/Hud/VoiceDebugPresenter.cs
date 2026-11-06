@@ -93,7 +93,7 @@ namespace Game.Scripts.UI.Hud
                 _idLabel.text = $"ID={id}";
             }
 
-            var mic = _voice.MicDevice ?? "none";
+            var mic = _voice.MicStatus;
             if (mic != _shownMic)
             {
                 _shownMic = mic;
