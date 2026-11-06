@@ -33,6 +33,7 @@ namespace Game.Scripts.UI.Menu
         private LobbyListPresenter _lobby;
         private SettingsPresenter _settingsPresenter;
         private StartPagePresenter _startPresenter;
+        private NicknameEditor _nickname;
         private bool _settingsShown;
         private bool _inStartMode;
         private GameplayInput _input;
@@ -43,27 +44,22 @@ namespace Game.Scripts.UI.Menu
         private VoiceManager _voice;
         private PlayerNames _names;
         private NetworkSession _session;
-        private StartupOptions _startup;
-        private ServerEndpoint _mainServer;
 
         /// <summary>Меню открыто; игровой ввод в это время заблокирован через GameplayInput.</summary>
         public bool IsOpen { get; private set; }
 
         [Inject]
         public void Construct(GameplayInput input, GameSettings settings, PlayerController player, Lobby lobby,
-            INetTransport transport, VoiceManager voice, PlayerNames names, NetworkSession session, StartupOptions startup,
-            ServerEndpoint mainServer)
+            INetTransport transport, VoiceManager voice, PlayerNames names, NetworkSession session)
         {
-            _names = names;
-            _session = session;
-            _startup = startup;
-            _mainServer = mainServer;
             _input = input;
             _settings = settings;
             _player = player;
             _lobbyService = lobby;
             _transport = transport;
             _voice = voice;
+            _names = names;
+            _session = session;
         }
 
         private void OnEnable()
@@ -77,6 +73,7 @@ namespace Game.Scripts.UI.Menu
             _title = root.Q<Label>("titleLabel");
             _quitButton = root.Q<Button>("quitButton");
             _respawnButton = root.Q<Button>("respawnButton");
+            var changeServerButton = root.Q<Button>("changeServerButton");
 
             root.Q<Button>("resumeButton").clicked += Close;
             root.Q<Button>("settingsButton").clicked += ShowSettings;
@@ -84,16 +81,19 @@ namespace Game.Scripts.UI.Menu
             root.Q<Button>("quitConfirmButton").clicked += Quit;
             _quitButton.clicked += () => SetQuitConfirmation(true);
             _respawnButton.clicked += Respawn;
+            changeServerButton.clicked += ChangeServer;
+            changeServerButton.SetVisible(_session.HasStartMenu);
 
             _lobby = new LobbyListPresenter(root, playerRowTemplate, _lobbyService, _transport, _settings, _voice, _names);
             _settingsPresenter = new SettingsPresenter(root, ShowHome, _settings, _voice);
-            _startPresenter = new StartPagePresenter(_startPage, _settings, _mainServer, Play, ShowSettings, Quit);
+            _nickname = new NicknameEditor(root.Q<TextField>("pauseNicknameField"), _settings);
+            _startPresenter = new StartPagePresenter(_startPage, _settings, _session.DefaultEndpoint, Play, ShowSettings, Quit);
             _menuRoot.SetVisible(IsOpen);
         }
 
         private void Start()
         {
-            if (_startup.ShowStartMenu && !_session.IsStarted) OpenStart();
+            if (_session.AwaitsServerChoice) OpenStart();
         }
 
         private void OnDisable() => _lobby.Dispose();
@@ -141,8 +141,7 @@ namespace Game.Scripts.UI.Menu
             ShowHome();
             _settingsPresenter.Load();
             _startPresenter.Load();
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            UnlockCursor();
         }
 
         private bool Play(ServerEndpoint endpoint)
@@ -162,11 +161,7 @@ namespace Game.Scripts.UI.Menu
 
         private void ShowStart()
         {
-            _settingsShown = false;
-            _title.text = StartTitle;
-            _startPage.SetVisible(true);
-            _mainPage.SetVisible(false);
-            _settingsPage.SetVisible(false);
+            ShowPage(_startPage, StartTitle);
             _quitConfirm.SetVisible(false);
         }
 
@@ -175,13 +170,14 @@ namespace Game.Scripts.UI.Menu
             SetOpen(true);
             ShowMain();
             _settingsPresenter.Load();
+            _nickname.Load();
             _respawnButton.SetEnabled(_player != null);
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            UnlockCursor();
         }
 
         private void Close()
         {
+            _nickname.Apply();
             SetOpen(false);
             if (_player.ControlsActive)
             {
@@ -201,27 +197,39 @@ namespace Game.Scripts.UI.Menu
 
         private void ShowMain()
         {
-            _settingsShown = false;
-            _title.text = MainTitle;
-            _startPage.SetVisible(false);
-            _mainPage.SetVisible(true);
-            _settingsPage.SetVisible(false);
+            ShowPage(_mainPage, MainTitle);
             SetQuitConfirmation(false);
         }
 
-        private void ShowSettings()
+        private void ShowSettings() => ShowPage(_settingsPage, SettingsTitle);
+
+        private void ShowPage(VisualElement page, string title)
         {
-            _settingsShown = true;
-            _title.text = SettingsTitle;
-            _startPage.SetVisible(false);
-            _mainPage.SetVisible(false);
-            _settingsPage.SetVisible(true);
+            _settingsShown = page == _settingsPage;
+            _title.text = title;
+            _startPage.SetVisible(page == _startPage);
+            _mainPage.SetVisible(page == _mainPage);
+            _settingsPage.SetVisible(page == _settingsPage);
+        }
+
+        private static void UnlockCursor()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         private void SetQuitConfirmation(bool visible)
         {
             _quitConfirm.SetVisible(visible);
             _quitButton.SetVisible(!visible);
+        }
+
+        // Отключение от сервера — перезапуск сцены: она снова открывается со стартового меню.
+        private void ChangeServer()
+        {
+            _nickname.Apply();
+            _settings.Save();
+            SceneRestart.Run();
         }
 
         private void Respawn()

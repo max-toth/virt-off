@@ -10,13 +10,15 @@ namespace Game.Scripts.UI.Menu
     internal sealed class StartPagePresenter
     {
         private const string CustomServerChoice = "Другой адрес";
+        private const string InvalidAddressError = "Адрес сервера: хост или хост:порт, например 127.0.0.1:7777";
 
         private readonly TextField _nickname;
         private readonly DropdownField _server;
         private readonly TextField _address;
         private readonly Label _error;
         private readonly GameSettings _settings;
-        private readonly List<KeyValuePair<string, ServerEndpoint>> _presets;
+        private readonly Func<ServerEndpoint, bool> _play;
+        private readonly List<ServerPreset> _presets;
 
         /// <param name="mainServer">Сервер из ServerConfig.</param>
         /// <param name="play">Получает выбранный сервер; возвращает false, если подключиться не удалось.</param>
@@ -24,25 +26,25 @@ namespace Game.Scripts.UI.Menu
             Func<ServerEndpoint, bool> play, Action showSettings, Action quit)
         {
             _settings = settings;
+            _play = play;
             _nickname = root.Q<TextField>("nicknameField");
             _server = root.Q<DropdownField>("serverDropdown");
             _address = root.Q<TextField>("serverAddressField");
             _error = root.Q<Label>("startError");
 
-            _presets = new List<KeyValuePair<string, ServerEndpoint>>
+            _presets = new List<ServerPreset>
             {
                 new($"Основной ({mainServer})", mainServer),
                 new($"Локальный ({ServerEndpoint.Local})", ServerEndpoint.Local)
             };
 
-            var choices = new List<string>();
-            foreach (var preset in _presets) choices.Add(preset.Key);
+            var choices = _presets.ConvertAll(preset => preset.Label);
             choices.Add(CustomServerChoice);
             _server.choices = choices;
             _server.RegisterValueChangedCallback(evt => OnServerChosen(evt.newValue));
 
             _nickname.maxLength = GameSettings.MaxNicknameLength;
-            root.Q<Button>("playButton").clicked += () => Play(play);
+            root.Q<Button>("playButton").clicked += Play;
             root.Q<Button>("startSettingsButton").clicked += showSettings;
             root.Q<Button>("startQuitButton").clicked += quit;
         }
@@ -54,28 +56,28 @@ namespace Game.Scripts.UI.Menu
             ShowError(null);
 
             var saved = _settings.ServerAddress;
-            if (string.IsNullOrEmpty(saved)) saved = _presets[0].Value.ToString();
+            if (string.IsNullOrEmpty(saved)) saved = _presets[0].Address;
+
+            var preset = _presets.Find(p => p.Address == saved);
             _address.SetValueWithoutNotify(saved);
-            _server.SetValueWithoutNotify(FindPreset(saved) ?? CustomServerChoice);
-            _address.SetVisible(_server.value == CustomServerChoice);
+            _server.SetValueWithoutNotify(preset?.Label ?? CustomServerChoice);
+            _address.SetVisible(preset == null);
         }
 
         private void OnServerChosen(string choice)
         {
-            foreach (var preset in _presets)
-            {
-                if (preset.Key == choice) _address.SetValueWithoutNotify(preset.Value.ToString());
-            }
+            var preset = _presets.Find(p => p.Label == choice);
+            if (preset != null) _address.SetValueWithoutNotify(preset.Address);
 
-            _address.SetVisible(choice == CustomServerChoice);
+            _address.SetVisible(preset == null);
             ShowError(null);
         }
 
-        private void Play(Func<ServerEndpoint, bool> play)
+        private void Play()
         {
             if (!ServerEndpoint.TryParse(_address.value, out var endpoint))
             {
-                ShowError("Адрес сервера: хост или хост:порт, например 127.0.0.1:7777");
+                ShowError(InvalidAddressError);
                 return;
             }
 
@@ -83,23 +85,28 @@ namespace Game.Scripts.UI.Menu
             _settings.ServerAddress = endpoint.ToString();
             _settings.Save();
 
-            if (!play(endpoint)) ShowError($"Не удалось найти сервер {endpoint.Host}");
-        }
-
-        private string FindPreset(string address)
-        {
-            foreach (var preset in _presets)
-            {
-                if (preset.Value.ToString() == address) return preset.Key;
-            }
-
-            return null;
+            if (!_play(endpoint)) ShowError($"Не удалось найти сервер {endpoint.Host}");
         }
 
         private void ShowError(string text)
         {
             _error.text = text ?? string.Empty;
             _error.SetVisible(text != null);
+        }
+
+        private sealed class ServerPreset
+        {
+            public ServerPreset(string label, ServerEndpoint endpoint)
+            {
+                Label = label;
+                Address = endpoint.ToString();
+            }
+
+            /// <summary>Пункт выпадающего списка.</summary>
+            public string Label { get; }
+
+            /// <summary>Адрес «хост:порт», как его показывает поле ввода.</summary>
+            public string Address { get; }
         }
     }
 }

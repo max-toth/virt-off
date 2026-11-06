@@ -31,7 +31,8 @@ namespace Game.Scripts.Player
                 ReadMove(keyboard),
                 keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed,
                 keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed,
-                keyboard.spaceKey.wasPressedThisFrame);
+                keyboard.spaceKey.wasPressedThisFrame,
+                keyboard.vKey.wasPressedThisFrame);
             return true;
         }
 

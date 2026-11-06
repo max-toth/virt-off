@@ -42,7 +42,7 @@ namespace Game.Scripts.Combat
             _player = GetComponent<PlayerController>();
             _controller = GetComponent<CharacterController>();
 
-            var view = GetComponentInChildren<Camera>().transform;
+            var view = _player.View;
             _attacker = new MeleeAttacker(transform, view, melee, remotePlayers, props, propSender, combatSounds, network);
             _carrier = new PropCarrier(transform, view, _controller, carry, props, sounds, network);
         }

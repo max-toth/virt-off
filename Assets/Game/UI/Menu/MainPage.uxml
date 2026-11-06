@@ -3,6 +3,10 @@
     <ui:Style src="PauseMenu.uss" />
     <ui:VisualElement class="page__content">
         <ui:Label name="connectionLabel" class="status" text="○ Подключение к серверу…" />
+        <ui:VisualElement class="row nickname-row">
+            <ui:Label class="row__label" text="Ник" />
+            <ui:TextField name="pauseNicknameField" class="row__input" />
+        </ui:VisualElement>
         <ui:Label name="lobbyCountLabel" class="section-title" text="В лобби: 0" />
         <ui:ScrollView name="playerList" class="player-list" mode="Vertical" horizontal-scroller-visibility="Hidden" />
         <ui:Label name="playerListHint" class="hint" text="Список появится после подключения" />
@@ -10,6 +14,7 @@
         <ui:Button name="resumeButton" class="menu-button" text="Продолжить" />
         <ui:Button name="respawnButton" class="menu-button" text="Вернуться на старт (если провалились или застряли)" />
         <ui:Button name="settingsButton" class="menu-button" text="Настройки" />
+        <ui:Button name="changeServerButton" class="menu-button" text="Сменить сервер" />
         <ui:Button name="quitButton" class="menu-button" text="Выход" />
         <ui:VisualElement name="quitConfirm" class="row hidden">
             <ui:Label class="row__field" text="Выйти из приложения?" />

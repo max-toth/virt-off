@@ -11,7 +11,7 @@
 
 .window {
     width: 600px;
-    height: 540px;
+    height: 640px;
     padding: 16px;
     border-width: 1px;
     border-color: var(--color-surface-raised);
@@ -90,6 +90,19 @@
     margin-top: 4px;
     margin-left: 0;
     margin-right: 0;
+}
+
+/* Поле ввода в строке: тянется по ширине, высота как у полей стартовой страницы. */
+.row__input {
+    flex-grow: 1;
+    height: 32px;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.nickname-row {
+    margin-top: 0;
+    margin-bottom: 8px;
 }
 
 .row__value {

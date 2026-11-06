@@ -31,10 +31,10 @@ namespace Game.Scripts.Player.Sync
         [Inject]
         public void Construct(PositionNetwork network, Lobby lobby, RemotePlayers remotePlayers, PlayerNames names)
         {
-            _names = names;
             _network = network;
             _lobby = lobby;
             _remotePlayers = remotePlayers;
+            _names = names;
         }
 
         private void Awake()
@@ -45,7 +45,8 @@ namespace Game.Scripts.Player.Sync
 
         private void Start()
         {
-            _avatarFactory = new RemoteAvatarFactory(transform, avatarPrefabs, avatarScale, _remotePlayers, _names);
+            _avatarFactory = new RemoteAvatarFactory(transform, avatarPrefabs, avatarScale, _remotePlayers, _names,
+                _player.GetComponentInChildren<Camera>().transform);
             _network.Received += OnPositionReceived;
             _lobby.PlayerLeft += OnPlayerLeft;
         }

@@ -31,16 +31,12 @@ namespace Game.Scripts.Bootstrap
             builder.RegisterEntryPoint<GameSounds>().AsSelf();
             builder.Register<CombatSounds>(Lifetime.Singleton);
 
-            // Сервер из -server подключается сразу; иначе адрес выбирают в стартовом меню, если оно есть в сцене.
-            var hasCommandLineServer = ServerEndpoint.TryGetFromCommandLine(out var commandLineServer);
-            var hasMenu = FindAnyObjectByType<GameMenu>(FindObjectsInactive.Include) != null;
-            builder.RegisterInstance(hasCommandLineServer ? commandLineServer : ServerEndpoint.FromConfig());
-            builder.RegisterInstance(new StartupOptions(hasMenu && !hasCommandLineServer));
-
+            RegisterStartup(builder);
             builder.Register<NetManager>(Lifetime.Singleton).AsSelf().As<INetTransport>();
             new NetworkInstaller().Install(builder);
             builder.RegisterEntryPoint<NetworkSession>().AsSelf();
             builder.RegisterEntryPoint<PlayerNames>().AsSelf();
+            builder.RegisterEntryPoint<NicknamePublisher>();
 
             builder.Register<RemotePlayers>(Lifetime.Singleton);
             builder.RegisterEntryPoint<RemoteCombatPresenter>();
@@ -58,6 +54,15 @@ namespace Game.Scripts.Bootstrap
             RegisterIfPresent<GameMenu>(builder);
             RegisterIfPresent<HudPresenter>(builder);
             RegisterIfPresent<VoiceDebugPresenter>(builder);
+        }
+
+        // Сервер из -server подключается сразу; иначе адрес выбирают в стартовом меню, если оно есть в сцене.
+        private static void RegisterStartup(IContainerBuilder builder)
+        {
+            var hasCommandLineServer = ServerEndpoint.TryGetFromCommandLine(out var commandLineServer);
+            var hasMenu = FindAnyObjectByType<GameMenu>(FindObjectsInactive.Include) != null;
+            builder.RegisterInstance(hasCommandLineServer ? commandLineServer : ServerEndpoint.FromConfig());
+            builder.RegisterInstance(new StartupOptions(hasMenu && !hasCommandLineServer));
         }
 
         // GameUI есть не в каждой сцене (в Demo 1 его нет), а от интерфейса ничего не зависит.

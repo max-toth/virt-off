@@ -12,25 +12,33 @@ namespace Game.Scripts.Bootstrap
     public sealed class NetworkSession : IInitializable, IDisposable
     {
         private readonly NetManager _manager;
-        private readonly ServerEndpoint _defaultEndpoint;
         private readonly StartupOptions _options;
 
         public NetworkSession(NetManager manager, ServerEndpoint defaultEndpoint, StartupOptions options)
         {
             _manager = manager;
-            _defaultEndpoint = defaultEndpoint;
+            DefaultEndpoint = defaultEndpoint;
             _options = options;
         }
 
+        /// <summary>Сервер из -server или ServerConfig: к нему сцена без стартового меню подключается сразу.</summary>
+        public ServerEndpoint DefaultEndpoint { get; }
+
         /// <summary>Подключение уже начато: сменить сервер можно только перезапуском сцены.</summary>
         public bool IsStarted { get; private set; }
+
+        /// <summary>Сервер выбирают в стартовом меню; без него сервер задан заранее и сменить его нельзя.</summary>
+        public bool HasStartMenu => _options.ShowStartMenu;
+
+        /// <summary>Подключение ждёт выбора сервера в стартовом меню.</summary>
+        public bool AwaitsServerChoice => _options.ShowStartMenu && !IsStarted;
 
         public void Initialize()
         {
             _manager.IdAssigned += OnIdAssigned;
             NetworkPlayerLoop.Install(_manager.ProcessIncoming);
 
-            if (!_options.ShowStartMenu) Connect(_defaultEndpoint);
+            if (!_options.ShowStartMenu) Connect(DefaultEndpoint);
         }
 
         // NetManager освобождает контейнер: после этого он отправит DISCONNECT.

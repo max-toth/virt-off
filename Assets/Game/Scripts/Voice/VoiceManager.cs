@@ -50,10 +50,10 @@ namespace Game.Scripts.Voice
         [Inject]
         public void Construct(VoiceNetwork network, GameSettings settings, GameplayInput input, Lobby lobby)
         {
-            _lobby = lobby;
             _network = network;
             _settings = settings;
             _input = input;
+            _lobby = lobby;
             _capture = new MicrophoneCapture(settings);
             _encoder = new VoiceEncoder();
             _gate = new VoiceActivityGate(activationThreshold, Mathf.CeilToInt(hangoverSeconds / FrameSeconds));
@@ -128,7 +128,7 @@ namespace Game.Scripts.Voice
             }
 
             // Тишина не отправляется: собеседникам не приходится её декодировать, трафик — только пока говорят.
-            _gate.Threshold = _lobby.IsAnyoneSpeaking ? Mathf.Max(activationThreshold, echoSuppressionThreshold) : activationThreshold;
+            _gate.Threshold = CurrentActivationThreshold();
             while (_capture.TryRead(_frame))
             {
                 if (!_gate.ShouldSend(_frame, _settings.MicGain)) continue;
@@ -137,6 +137,10 @@ namespace Game.Scripts.Voice
                 _network.Send(_encoder.Output, length);
             }
         }
+
+        // Пока говорят другие, порог выше: их голос из колонок не уходит обратно эхом.
+        private float CurrentActivationThreshold() =>
+            _lobby.IsAnyoneSpeaking ? Mathf.Max(activationThreshold, echoSuppressionThreshold) : activationThreshold;
 
         private void HandleHotkeys()
         {

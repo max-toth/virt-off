@@ -31,11 +31,11 @@ namespace Game.Scripts.UI.Menu
         public LobbyListPresenter(VisualElement root, VisualTreeAsset rowTemplate, Lobby lobby, INetTransport transport,
             GameSettings settings, VoiceManager voice, PlayerNames names)
         {
-            _names = names;
             _lobby = lobby;
             _transport = transport;
             _settings = settings;
             _voice = voice;
+            _names = names;
             _connection = root.Q<Label>("connectionLabel");
             _count = root.Q<Label>("lobbyCountLabel");
             _hint = root.Q<Label>("playerListHint");
@@ -88,7 +88,8 @@ namespace Game.Scripts.UI.Menu
             _self.SetName(ownName.Length > 0 ? $"Вы — {ownName}" : $"Вы (игрок {_transport.LocalId})");
             _list.Add(_self.Root);
 
-            foreach (var player in _lobby.Players.OrderBy(player => _names.DisplayName(player.Id), StringComparer.CurrentCultureIgnoreCase))
+            var players = _lobby.Players.OrderBy(player => _names.DisplayName(player.Id), StringComparer.CurrentCultureIgnoreCase);
+            foreach (var player in players)
             {
                 var view = new PlayerRowView(_rowTemplate, () => player.Muted = !player.Muted);
                 view.SetName(_names.DisplayName(player.Id));

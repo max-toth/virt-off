@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Game.Scripts.Net.Config
 {
-    /// <summary>Адрес сервера: из Resources/ServerConfig, аргумент -server &lt;host[:port]&gt; его перекрывает.</summary>
+    /// <summary>Адрес сервера: из Resources/ServerConfig, аргумента -server &lt;host[:port]&gt; или строки «хост[:порт]».</summary>
     public sealed class ServerEndpoint
     {
         private const string ServerArgument = "-server";
@@ -43,37 +43,37 @@ namespace Game.Scripts.Net.Config
             return false;
         }
 
-        public static ServerEndpoint Resolve() => TryGetFromCommandLine(out var endpoint) ? endpoint : FromConfig();
-
         /// <summary>Разбирает «хост» или «хост:порт»; без порта — ServerConfig.DefaultPort.</summary>
         public static bool TryParse(string address, out ServerEndpoint endpoint)
         {
             endpoint = null;
             if (string.IsNullOrWhiteSpace(address)) return false;
 
-            address = address.Trim();
-            var host = address;
-            int port = ServerConfig.DefaultPort;
-
-            // Порт отделяется последним двоеточием; адрес IPv6 с двоеточиями пишется в скобках: [::1]:7777.
-            var colon = address.LastIndexOf(':');
-            var bracket = address.LastIndexOf(']');
-            var hasPort = colon > bracket && (bracket >= 0 || address.IndexOf(':') == colon);
-            if (hasPort)
-            {
-                host = address.Substring(0, colon);
-                if (!int.TryParse(address.Substring(colon + 1), NumberStyles.None, CultureInfo.InvariantCulture, out port)
-                    || port is < 1 or > ushort.MaxValue)
-                    return false;
-            }
+            if (!TrySplitPort(address.Trim(), out var host, out var port)) return false;
 
             host = host.Trim('[', ']');
-            if (host.Length == 0 || host.Contains(" ")) return false;
+            if (host.Length == 0 || host.Contains(' ')) return false;
 
             endpoint = new ServerEndpoint(host, port);
             return true;
         }
 
-        public override string ToString() => Host.Contains(":") ? $"[{Host}]:{Port}" : $"{Host}:{Port}";
+        public override string ToString() => Host.Contains(':') ? $"[{Host}]:{Port}" : $"{Host}:{Port}";
+
+        // Порт отделяется последним двоеточием; адрес IPv6 с двоеточиями пишется в скобках: [::1]:7777.
+        private static bool TrySplitPort(string address, out string host, out int port)
+        {
+            host = address;
+            port = ServerConfig.DefaultPort;
+
+            var colon = address.LastIndexOf(':');
+            var bracket = address.LastIndexOf(']');
+            var hasPort = colon > bracket && (bracket >= 0 || address.IndexOf(':') == colon);
+            if (!hasPort) return true;
+
+            host = address.Substring(0, colon);
+            return int.TryParse(address.Substring(colon + 1), NumberStyles.None, CultureInfo.InvariantCulture, out port)
+                   && port is >= 1 and <= ushort.MaxValue;
+        }
     }
 }
