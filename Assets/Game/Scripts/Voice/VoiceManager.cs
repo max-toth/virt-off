@@ -1,4 +1,5 @@
 using Game.Scripts.Controls;
+using Game.Scripts.Net;
 using Game.Scripts.Settings;
 using Game.Scripts.Voice.Capture;
 using UnityEngine;
@@ -18,6 +19,10 @@ namespace Game.Scripts.Voice
         [SerializeField] private float activationThreshold = 0.02f;
         [Tooltip("Сколько секунд после речи ещё отправлять, чтобы не обрезать окончания слов")]
         [SerializeField] private float hangoverSeconds = 0.3f;
+        [Tooltip("Порог, пока говорят другие: их голос из колонок тише своего и не уходит обратно эхом. " +
+                 "Полностью эхо убирают только наушники")]
+        [Range(0f, 0.5f)]
+        [SerializeField] private float echoSuppressionThreshold = 0.12f;
 
         private readonly float[] _frame = new float[VoiceFormat.FrameSize];
         private MicrophoneCapture _capture;
@@ -27,6 +32,7 @@ namespace Game.Scripts.Voice
         private VoiceNetwork _network;
         private GameSettings _settings;
         private GameplayInput _input;
+        private Lobby _lobby;
         private bool _waitingForConnection;
 
         /// <summary>Уровень микрофона с учётом усиления, 0..1.</summary>
@@ -42,8 +48,9 @@ namespace Game.Scripts.Voice
         public string MicStatus { get; private set; } = "not started (waiting for server)";
 
         [Inject]
-        public void Construct(VoiceNetwork network, GameSettings settings, GameplayInput input)
+        public void Construct(VoiceNetwork network, GameSettings settings, GameplayInput input, Lobby lobby)
         {
+            _lobby = lobby;
             _network = network;
             _settings = settings;
             _input = input;
@@ -121,6 +128,7 @@ namespace Game.Scripts.Voice
             }
 
             // Тишина не отправляется: собеседникам не приходится её декодировать, трафик — только пока говорят.
+            _gate.Threshold = _lobby.IsAnyoneSpeaking ? Mathf.Max(activationThreshold, echoSuppressionThreshold) : activationThreshold;
             while (_capture.TryRead(_frame))
             {
                 if (!_gate.ShouldSend(_frame, _settings.MicGain)) continue;

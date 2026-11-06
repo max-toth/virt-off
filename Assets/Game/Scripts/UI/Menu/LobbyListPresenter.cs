@@ -24,12 +24,14 @@ namespace Game.Scripts.UI.Menu
         private readonly INetTransport _transport;
         private readonly GameSettings _settings;
         private readonly VoiceManager _voice;
+        private readonly PlayerNames _names;
         private bool _connected;
         private bool _dirty = true;
 
         public LobbyListPresenter(VisualElement root, VisualTreeAsset rowTemplate, Lobby lobby, INetTransport transport,
-            GameSettings settings, VoiceManager voice)
+            GameSettings settings, VoiceManager voice, PlayerNames names)
         {
+            _names = names;
             _lobby = lobby;
             _transport = transport;
             _settings = settings;
@@ -43,12 +45,14 @@ namespace Game.Scripts.UI.Menu
 
             _lobby.PlayerJoined += OnLobbyChanged;
             _lobby.PlayerLeft += OnLobbyChanged;
+            _names.Changed += OnNamesChanged;
         }
 
         public void Dispose()
         {
             _lobby.PlayerJoined -= OnLobbyChanged;
             _lobby.PlayerLeft -= OnLobbyChanged;
+            _names.Changed -= OnNamesChanged;
         }
 
         public void Update()
@@ -62,6 +66,8 @@ namespace Game.Scripts.UI.Menu
         }
 
         private void OnLobbyChanged(string id) => _dirty = true;
+
+        private void OnNamesChanged() => _dirty = true;
 
         private void Rebuild(bool connected)
         {
@@ -78,13 +84,14 @@ namespace Game.Scripts.UI.Menu
                 return;
             }
 
-            _self.SetName($"Вы (игрок {_transport.LocalId})");
+            var ownName = _names.Get(_transport.LocalId) ?? _settings.Nickname;
+            _self.SetName(ownName.Length > 0 ? $"Вы — {ownName}" : $"Вы (игрок {_transport.LocalId})");
             _list.Add(_self.Root);
 
-            foreach (var player in _lobby.Players.OrderBy(player => player.Id, StringComparer.Ordinal))
+            foreach (var player in _lobby.Players.OrderBy(player => _names.DisplayName(player.Id), StringComparer.CurrentCultureIgnoreCase))
             {
                 var view = new PlayerRowView(_rowTemplate, () => player.Muted = !player.Muted);
-                view.SetName($"Игрок {player.Id}");
+                view.SetName(_names.DisplayName(player.Id));
                 _list.Add(view.Root);
                 _others.Add(new KeyValuePair<LobbyPlayer, PlayerRowView>(player, view));
             }

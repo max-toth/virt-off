@@ -43,6 +43,7 @@ namespace Game.Tests.EditMode
             Assert.That(_container.Resolve<CombatNetwork>(), Is.Not.Null);
             Assert.That(_container.Resolve<PositionNetwork>(), Is.Not.Null);
             Assert.That(_container.Resolve<VoiceNetwork>(), Is.Not.Null);
+            Assert.That(_container.Resolve<PlayerNameNetwork>(), Is.Not.Null);
             Assert.That(_container.Resolve<NetPropSender>(), Is.Not.Null);
         }
 

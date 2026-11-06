@@ -16,6 +16,9 @@ namespace Game.Scripts.Net.Packets
         public const byte PropSnapshot = 0x0C;
         public const byte Disconnect = 0x0D;
         public const byte PlayerLeft = 0x0E;
+        public const byte PropPush = 0x0F;
+        public const byte SetName = 0x10;
+        public const byte PlayerName = 0x11;
         public const byte IdAssigned = 0xFE;
         public const byte Hello = 0xFF;
     }

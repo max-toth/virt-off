@@ -7,33 +7,30 @@ using VContainer.Unity;
 
 namespace Game.Scripts.Bootstrap
 {
-    /// <summary>Подключение к серверу на время жизни сцены: входящие пакеты разбираются в PreUpdate, до Update скриптов.</summary>
+    /// <summary>Подключение к серверу на время жизни сцены: входящие пакеты разбираются в PreUpdate, до Update скриптов.
+    /// Без стартового меню подключается сразу, иначе — когда меню вызовет Connect.</summary>
     public sealed class NetworkSession : IInitializable, IDisposable
     {
         private readonly NetManager _manager;
-        private readonly ServerEndpoint _endpoint;
+        private readonly ServerEndpoint _defaultEndpoint;
+        private readonly StartupOptions _options;
 
-        public NetworkSession(NetManager manager, ServerEndpoint endpoint)
+        public NetworkSession(NetManager manager, ServerEndpoint defaultEndpoint, StartupOptions options)
         {
             _manager = manager;
-            _endpoint = endpoint;
+            _defaultEndpoint = defaultEndpoint;
+            _options = options;
         }
+
+        /// <summary>Подключение уже начато: сменить сервер можно только перезапуском сцены.</summary>
+        public bool IsStarted { get; private set; }
 
         public void Initialize()
         {
-            Debug.Log($"[Net] Connecting to {_endpoint.Host}:{_endpoint.Port}");
             _manager.IdAssigned += OnIdAssigned;
-
-            try
-            {
-                _manager.StartClient(_endpoint.Host, _endpoint.Port);
-            }
-            catch (SocketException e)
-            {
-                Debug.LogError($"[Net] Cannot resolve server {_endpoint.Host}: {e.Message}");
-            }
-
             NetworkPlayerLoop.Install(_manager.ProcessIncoming);
+
+            if (!_options.ShowStartMenu) Connect(_defaultEndpoint);
         }
 
         // NetManager освобождает контейнер: после этого он отправит DISCONNECT.
@@ -41,6 +38,26 @@ namespace Game.Scripts.Bootstrap
         {
             NetworkPlayerLoop.Uninstall();
             _manager.IdAssigned -= OnIdAssigned;
+        }
+
+        /// <returns>false — подключение уже начато или имя хоста не разрешилось.</returns>
+        public bool Connect(ServerEndpoint endpoint)
+        {
+            if (IsStarted) return false;
+
+            Debug.Log($"[Net] Connecting to {endpoint}");
+            try
+            {
+                _manager.StartClient(endpoint.Host, endpoint.Port);
+            }
+            catch (SocketException e)
+            {
+                Debug.LogError($"[Net] Cannot resolve server {endpoint.Host}: {e.Message}");
+                return false;
+            }
+
+            IsStarted = true;
+            return true;
         }
 
         private void OnIdAssigned() => NetDiagnostics.Log($"[Net] Got ID: {_manager.LocalId}");

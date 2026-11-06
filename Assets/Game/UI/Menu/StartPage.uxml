@@ -1,0 +1,17 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:Style src="../Theme/Common.uss" />
+    <ui:Style src="PauseMenu.uss" />
+    <ui:VisualElement class="page__content">
+        <ui:Label class="section-title" text="Ник" />
+        <ui:TextField name="nicknameField" class="start-field" max-length="24" />
+        <ui:Label class="hint" text="Его увидят над вашим персонажем и в списке игроков" />
+        <ui:Label class="section-title" text="Сервер" />
+        <ui:DropdownField name="serverDropdown" class="start-field" />
+        <ui:TextField name="serverAddressField" label="Адрес (хост:порт)" class="start-field" />
+        <ui:Label name="startError" class="hint hidden" />
+        <ui:VisualElement class="spacer" />
+        <ui:Button name="playButton" class="menu-button" text="Зайти" />
+        <ui:Button name="startSettingsButton" class="menu-button" text="Настройки" />
+        <ui:Button name="startQuitButton" class="menu-button" text="Выход" />
+    </ui:VisualElement>
+</ui:UXML>

@@ -14,6 +14,8 @@ namespace Game.Scripts.Settings
         private const string FieldOfViewKey = "settings.fov";
         private const string VSyncKey = "settings.vsync";
         private const string QualityKey = "settings.quality";
+        private const string NicknameKey = "profile.nickname";
+        private const string ServerAddressKey = "profile.serverAddress";
 
         public bool HasMouseSensitivity => PlayerPrefs.HasKey(MouseSensitivityKey);
 
@@ -28,6 +30,8 @@ namespace Game.Scripts.Settings
             settings.FieldOfView = PlayerPrefs.GetFloat(FieldOfViewKey, GameSettings.DefaultFieldOfView);
             settings.VSync = GetBool(VSyncKey, true);
             settings.QualityLevel = PlayerPrefs.GetInt(QualityKey, GameSettings.ProjectQualityLevel);
+            settings.Nickname = PlayerPrefs.GetString(NicknameKey, string.Empty);
+            settings.ServerAddress = PlayerPrefs.GetString(ServerAddressKey, string.Empty);
         }
 
         public void Save(GameSettings settings)
@@ -41,6 +45,8 @@ namespace Game.Scripts.Settings
             PlayerPrefs.SetFloat(FieldOfViewKey, settings.FieldOfView);
             SetBool(VSyncKey, settings.VSync);
             PlayerPrefs.SetInt(QualityKey, settings.QualityLevel);
+            PlayerPrefs.SetString(NicknameKey, settings.Nickname);
+            PlayerPrefs.SetString(ServerAddressKey, settings.ServerAddress);
             PlayerPrefs.Save();
         }
 

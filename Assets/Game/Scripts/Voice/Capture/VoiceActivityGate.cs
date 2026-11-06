@@ -6,7 +6,6 @@ namespace Game.Scripts.Voice.Capture
     /// чтобы не обрезать затухающие окончания слов.</summary>
     public sealed class VoiceActivityGate
     {
-        private readonly float _threshold;
         private readonly int _hangoverFrames;
         private int _framesLeft;
 
@@ -14,9 +13,13 @@ namespace Game.Scripts.Voice.Capture
         /// <param name="hangoverFrames">Сколько кадров после речи ещё отправляется.</param>
         public VoiceActivityGate(float threshold, int hangoverFrames)
         {
-            _threshold = threshold;
+            Threshold = threshold;
             _hangoverFrames = hangoverFrames;
         }
+
+        /// <summary>Пиковая амплитуда кадра с учётом усиления, 0..1, с которой кадр считается речью.
+        /// Меняется на ходу: пока говорят другие, порог выше, чтобы их голос из колонок не уходил обратно эхом.</summary>
+        public float Threshold { get; set; }
 
         /// <summary>Последний кадр был отправлен.</summary>
         public bool IsOpen { get; private set; }
@@ -26,7 +29,7 @@ namespace Game.Scripts.Voice.Capture
             var peak = 0f;
             foreach (var sample in frame) peak = Math.Max(peak, Math.Abs(sample));
 
-            if (peak * gain >= _threshold) _framesLeft = _hangoverFrames + 1;
+            if (peak * gain >= Threshold) _framesLeft = _hangoverFrames + 1;
 
             IsOpen = _framesLeft > 0;
             if (IsOpen) _framesLeft--;

@@ -63,8 +63,8 @@ namespace Game.Scripts.Combat.Props
         private void PushOtherProp(Collision collision, float speed, Vector3 point)
         {
             if (speed <= PushPropSpeed || !_registry.TryFind(collision.collider, out var other) || other.HasAuthority) return;
+            if (!other.Push(_prop.LastThrower)) return;
 
-            other.LastThrower = _prop.LastThrower;
             other.Body.AddForceAtPosition(
                 -collision.relativeVelocity * (_prop.Body.mass * PushPropImpulseFactor), point, ForceMode.Impulse);
         }

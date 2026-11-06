@@ -68,6 +68,36 @@
     -unity-background-image-tint-color: var(--color-text-muted);
 }
 
+/* Текстовое поле */
+
+.unity-base-text-field__input {
+    border-width: 1px;
+    border-color: var(--color-border);
+    border-radius: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+    background-color: var(--color-surface-raised);
+    color: var(--color-text);
+    -unity-text-align: middle-left;
+    --unity-cursor-color: var(--color-text);
+    --unity-selection-color: rgba(72, 132, 226, 0.5);
+}
+
+.unity-base-text-field:hover:enabled > .unity-base-text-field__input,
+.unity-base-text-field:focus > .unity-base-text-field__input,
+.unity-base-text-field__input:focus {
+    border-color: var(--color-text-muted);
+    background-color: var(--color-surface-raised);
+}
+
+.unity-base-text-field:focus > .unity-base-text-field__input {
+    border-color: var(--color-accent);
+}
+
+.unity-text-element--inner-input-field-component {
+    color: var(--color-text);
+}
+
 /* Выпадающий список: всплывающее меню */
 
 .unity-base-dropdown__container-outer {

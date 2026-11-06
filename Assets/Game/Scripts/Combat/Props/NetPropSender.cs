@@ -53,6 +53,17 @@ namespace Game.Scripts.Combat.Props
             _writer.SendTo(_transport);
         }
 
+        // PROP_PUSH: [type][sender:str][propId:4]
+        public void SendPushRequest(int propId)
+        {
+            if (!_transport.IsConnected) return;
+
+            _writer.Begin(PacketType.PropPush);
+            _writer.WriteString(_transport.LocalId);
+            _writer.WriteInt32(propId);
+            _writer.SendTo(_transport);
+        }
+
         // PROP_RELEASE: [type][sender:str][propId:4][velocity:12][angularVelocity:12][flags:1]
         public void SendRelease(int propId, Vector3 velocity, Vector3 angularVelocity)
         {

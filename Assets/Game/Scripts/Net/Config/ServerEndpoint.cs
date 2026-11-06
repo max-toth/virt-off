@@ -1,12 +1,16 @@
 using System;
+using System.Globalization;
 using UnityEngine;
 
 namespace Game.Scripts.Net.Config
 {
-    /// <summary>Адрес сервера: из Resources/ServerConfig, аргумент -server &lt;host&gt; его перекрывает.</summary>
+    /// <summary>Адрес сервера: из Resources/ServerConfig, аргумент -server &lt;host[:port]&gt; его перекрывает.</summary>
     public sealed class ServerEndpoint
     {
         private const string ServerArgument = "-server";
+
+        /// <summary>Сервер, запущенный на этой же машине.</summary>
+        public static readonly ServerEndpoint Local = new("127.0.0.1", ServerConfig.DefaultPort);
 
         public ServerEndpoint(string host, int port)
         {
@@ -17,19 +21,59 @@ namespace Game.Scripts.Net.Config
         public string Host { get; }
         public int Port { get; }
 
-        public static ServerEndpoint Resolve()
+        /// <summary>Сервер из ServerConfig, без учёта аргументов командной строки.</summary>
+        public static ServerEndpoint FromConfig()
         {
             var config = Resources.Load<ServerConfig>(ServerConfig.ResourcePath);
-            var host = config != null ? config.Address : ServerConfig.DefaultAddress;
-            int port = config != null ? config.Port : ServerConfig.DefaultPort;
+            return config != null
+                ? new ServerEndpoint(config.Address, config.Port)
+                : new ServerEndpoint(ServerConfig.DefaultAddress, ServerConfig.DefaultPort);
+        }
 
+        /// <summary>Сервер из аргумента -server, если он передан: тогда стартовое меню не показывается.</summary>
+        public static bool TryGetFromCommandLine(out ServerEndpoint endpoint)
+        {
             var args = Environment.GetCommandLineArgs();
             for (var i = 0; i < args.Length - 1; i++)
             {
-                if (args[i] == ServerArgument) host = args[i + 1];
+                if (args[i] == ServerArgument && TryParse(args[i + 1], out endpoint)) return true;
             }
 
-            return new ServerEndpoint(host, port);
+            endpoint = null;
+            return false;
         }
+
+        public static ServerEndpoint Resolve() => TryGetFromCommandLine(out var endpoint) ? endpoint : FromConfig();
+
+        /// <summary>Разбирает «хост» или «хост:порт»; без порта — ServerConfig.DefaultPort.</summary>
+        public static bool TryParse(string address, out ServerEndpoint endpoint)
+        {
+            endpoint = null;
+            if (string.IsNullOrWhiteSpace(address)) return false;
+
+            address = address.Trim();
+            var host = address;
+            int port = ServerConfig.DefaultPort;
+
+            // Порт отделяется последним двоеточием; адрес IPv6 с двоеточиями пишется в скобках: [::1]:7777.
+            var colon = address.LastIndexOf(':');
+            var bracket = address.LastIndexOf(']');
+            var hasPort = colon > bracket && (bracket >= 0 || address.IndexOf(':') == colon);
+            if (hasPort)
+            {
+                host = address.Substring(0, colon);
+                if (!int.TryParse(address.Substring(colon + 1), NumberStyles.None, CultureInfo.InvariantCulture, out port)
+                    || port is < 1 or > ushort.MaxValue)
+                    return false;
+            }
+
+            host = host.Trim('[', ']');
+            if (host.Length == 0 || host.Contains(" ")) return false;
+
+            endpoint = new ServerEndpoint(host, port);
+            return true;
+        }
+
+        public override string ToString() => Host.Contains(":") ? $"[{Host}]:{Port}" : $"{Host}:{Port}";
     }
 }

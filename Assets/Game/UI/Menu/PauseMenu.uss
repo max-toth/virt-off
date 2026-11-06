@@ -83,6 +83,15 @@
     flex-grow: 1;
 }
 
+/* Поле стартовой страницы: в колонке, поэтому без flex-grow, иначе растягивается по высоте. */
+.start-field {
+    flex-grow: 0;
+    height: 32px;
+    margin-top: 4px;
+    margin-left: 0;
+    margin-right: 0;
+}
+
 .row__value {
     width: 56px;
     -unity-text-align: middle-right;

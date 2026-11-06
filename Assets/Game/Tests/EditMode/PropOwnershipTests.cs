@@ -101,7 +101,7 @@ namespace Game.Tests.EditMode
         {
             _ownership.RequestPickup(0f);
 
-            Assert.That(_ownership.ApplyRelease(releasedByUs: false), Is.False);
+            Assert.That(_ownership.ApplyRelease(releasedByUs: false, isFree: false), Is.False);
             Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.PickupPending));
         }
 
@@ -110,17 +110,99 @@ namespace Game.Tests.EditMode
         {
             _ownership.ApplySnapshot(held: true);
 
-            Assert.That(_ownership.ApplyRelease(releasedByUs: false), Is.True);
+            Assert.That(_ownership.ApplyRelease(releasedByUs: false, isFree: false), Is.True);
             Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Free));
         }
 
         [Test]
-        public void ReleaseEvent_Ours_FreesProp()
+        public void ReleaseEvent_EchoOfOurThrow_KeepsSimulating()
+        {
+            _ownership.RequestPickup(0f);
+            _ownership.ApplyGrant();
+            _ownership.Throw();
+
+            Assert.That(_ownership.ApplyRelease(releasedByUs: true, isFree: false), Is.False);
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Simulating));
+            Assert.That(_ownership.HasAuthority, Is.True);
+        }
+
+        [Test]
+        public void ReleaseEvent_FreedByServer_FreesOurProp()
         {
             _ownership.ApplyGrant();
 
-            Assert.That(_ownership.ApplyRelease(releasedByUs: true), Is.True);
+            Assert.That(_ownership.ApplyRelease(releasedByUs: true, isFree: true), Is.True);
             Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Free));
+        }
+
+        [Test]
+        public void Throw_AfterGrant_KeepsAuthorityUntilSettled()
+        {
+            _ownership.RequestPickup(0f);
+            _ownership.ApplyGrant();
+
+            _ownership.Throw();
+
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Simulating));
+            Assert.That(_ownership.IsHeld, Is.False);
+            Assert.That(_ownership.HasAuthority, Is.True);
+        }
+
+        [Test]
+        public void Throw_BeforeGrant_LateGrantStartsSimulating()
+        {
+            _ownership.RequestPickup(0f);
+            _ownership.Throw();
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Free));
+
+            _ownership.ApplyGrant();
+
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Simulating));
+        }
+
+        [Test]
+        public void Push_RequestsSimulationOnce()
+        {
+            Assert.That(_ownership.RequestSimulation(0f), Is.True);
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.SimulationPending));
+            Assert.That(_ownership.RequestSimulation(0.1f), Is.False);
+
+            _ownership.ApplyGrant();
+
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Simulating));
+            Assert.That(_ownership.IsHeld, Is.False);
+        }
+
+        [Test]
+        public void Push_OfHeldProp_IsNotRequested()
+        {
+            _ownership.ApplySnapshot(held: true);
+
+            Assert.That(_ownership.RequestSimulation(0f), Is.False);
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.HeldByOther));
+        }
+
+        [Test]
+        public void PushTimeout_FreesWithoutRollback()
+        {
+            _ownership.RequestSimulation(1f);
+
+            Assert.That(_ownership.CheckGrantTimeout(1f + PropOwnership.GrantTimeout + 0.01f), Is.False);
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Free));
+            Assert.That(_ownership.RequestSimulation(2f), Is.True);
+        }
+
+        [Test]
+        public void Pickup_OfOwnThrownProp_IsAllowed()
+        {
+            _ownership.RequestPickup(0f);
+            _ownership.ApplyGrant();
+            _ownership.Throw();
+
+            _ownership.RequestPickup(1f);
+            _ownership.ApplyGrant();
+
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Held));
         }
 
         [TestCase(true, PropOwnershipState.HeldByOther)]
@@ -138,10 +220,29 @@ namespace Game.Tests.EditMode
         [TestCase(false, PropOwnershipState.Free)]
         public void RemoteState_SetsState(bool held, PropOwnershipState expected)
         {
-            _ownership.ApplyGrant();
+            _ownership.ApplySnapshot(!held);
 
             Assert.That(_ownership.ApplyRemoteState(held), Is.True);
             Assert.That(_ownership.State, Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void RemoteState_IsRejectedWhileWeSimulate()
+        {
+            _ownership.RequestSimulation(0f);
+            _ownership.ApplyGrant();
+
+            Assert.That(_ownership.ApplyRemoteState(false), Is.False);
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Simulating));
+        }
+
+        [Test]
+        public void RemoteState_WhilePushPending_GivesPropToOwner()
+        {
+            _ownership.RequestSimulation(0f);
+
+            Assert.That(_ownership.ApplyRemoteState(false), Is.True);
+            Assert.That(_ownership.State, Is.EqualTo(PropOwnershipState.Free));
         }
 
         [Test]

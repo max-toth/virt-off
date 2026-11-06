@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Game.Scripts.Net;
 using Game.Scripts.Player.Animation;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -15,10 +16,13 @@ namespace Game.Scripts.Player.Sync
         private readonly GameObject _template;
         private readonly bool _hasTemplate;
         private readonly RemotePlayers _registry;
+        private readonly PlayerNames _names;
 
-        public RemoteAvatarFactory(Transform localPlayer, GameObject[] prefabs, float prefabScale, RemotePlayers registry)
+        public RemoteAvatarFactory(Transform localPlayer, GameObject[] prefabs, float prefabScale, RemotePlayers registry,
+            PlayerNames names)
         {
             _registry = registry;
+            _names = names;
             _prefabs = prefabs;
             _prefabScale = prefabScale;
             _hasTemplate = TryCreateTemplate(localPlayer, out _template);
@@ -30,6 +34,7 @@ namespace Game.Scripts.Player.Sync
             var avatar = Instantiate(id, position, rotation);
             avatar.name = $"RemotePlayer_{id}";
             RemoteAvatar.Attach(avatar, id, _registry);
+            RemoteNameplate.Attach(avatar, id, _names);
             avatar.TryGetComponent(out ProceduralWalk walk);
             return new RemotePlayer(avatar.transform, walk);
         }

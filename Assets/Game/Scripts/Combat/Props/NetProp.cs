@@ -18,6 +18,8 @@ namespace Game.Scripts.Combat.Props
         private PropHolderCollision _holderCollision;
         private Vector3 _startPosition;
         private Quaternion _startRotation;
+        private Vector3 _pickupPosition;
+        private Quaternion _pickupRotation;
         private float _sendTimer;
         private NetPropSender _sender;
 
@@ -41,6 +43,9 @@ namespace Game.Scripts.Combat.Props
         /// <summary>Сервер отдал нам предмет: мы рассылаем его состояние.</summary>
         internal bool HasAuthority => _ownership.HasAuthority;
 
+        /// <summary>Предмет летит или катится под управлением другого игрока: брать и толкать его бесполезно.</summary>
+        public bool IsMovedByOther => !HasAuthority && _follower.IsActive;
+
         [Inject]
         public void Construct(NetPropSender sender) => _sender = sender;
 
@@ -57,7 +62,7 @@ namespace Game.Scripts.Combat.Props
 
             if (_ownership.CheckGrantTimeout(Time.time))
             {
-                ResetToStart();
+                RestorePickupPose();
                 NetPropDiagnostics.Log($"Grant timeout, rollback prop={Id}");
             }
 
@@ -71,16 +76,29 @@ namespace Game.Scripts.Combat.Props
             else if (_follower.IsActive) _follower.Update(transform);
         }
 
-        /// <summary>Локальное владение физикой (удар, толчок) без запроса к серверу.</summary>
-        public void TakeOwnership(string thrower)
+        /// <summary>Предмет толкнули или ударили: физика сразу считается у нас, а у сервера запрашивается PROP_PUSH,
+        /// чтобы остальные видели полёт. Если сервер откажет, предмет поведёт тот, кому он отдан.</summary>
+        /// <param name="pusher">Id толкнувшего: ему засчитаются попадания предметом.</param>
+        /// <returns>false — предмет в руках или его ведёт другой игрок: силу не прикладывать.</returns>
+        public bool Push(string pusher)
         {
-            LastThrower = thrower;
-            _settle.Restart();
-            _follower.Stop();
-            if (HasAuthority) return;
+            if (IsHeld || IsMovedByOther) return false;
 
+            LastThrower = pusher;
+            _settle.Restart();
+            if (HasAuthority) return true;
+
+            _follower.Stop();
             Body.isKinematic = false;
             Body.WakeUp();
+
+            if (_ownership.RequestSimulation(Time.time) && _sender.IsConnected)
+            {
+                _sender.SendPushRequest(NetworkId);
+                NetPropDiagnostics.Log($"PROP_PUSH prop={Id} serverId={NetworkId}");
+            }
+
+            return true;
         }
 
         /// <summary>Берёт предмет в руки сразу, не дожидаясь PROP_GRANT; при отказе или тайм-ауте предмет вернётся на место.</summary>
@@ -88,6 +106,7 @@ namespace Game.Scripts.Combat.Props
         {
             if (!_sender.IsConnected) return;
 
+            transform.GetPositionAndRotation(out _pickupPosition, out _pickupRotation);
             _ownership.RequestPickup(Time.time);
             Body.isKinematic = true;
             _holderCollision.Ignore(holder);
@@ -100,7 +119,10 @@ namespace Game.Scripts.Combat.Props
         {
             if (!_sender.IsConnected) return;
 
-            _ownership.Release();
+            // Бросивший ведёт полёт сам и рассылает PROP_STATE, пока предмет не успокоится.
+            _ownership.Throw();
+            _settle.Restart();
+            LastThrower = _sender.LocalId;
             Body.isKinematic = false;
             Body.linearVelocity = velocity;
             Body.angularVelocity = angularVelocity;
@@ -127,13 +149,13 @@ namespace Game.Scripts.Combat.Props
 
         internal void ApplyGrantToOther(string holder)
         {
-            if (_ownership.ApplyGrantToOther()) ResetToStart();
+            if (_ownership.ApplyGrantToOther()) RestorePickupPose();
             LastThrower = holder;
         }
 
         internal void ApplyRelease(bool releasedByUs, bool isFree)
         {
-            if (!_ownership.ApplyRelease(releasedByUs)) return;
+            if (!_ownership.ApplyRelease(releasedByUs, isFree)) return;
 
             if (isFree)
             {
@@ -203,6 +225,13 @@ namespace Game.Scripts.Combat.Props
             transform.GetPositionAndRotation(out var position, out var rotation);
             var velocity = Body.isKinematic ? Vector3.zero : Body.linearVelocity;
             _sender.SendState(NetworkId, position, rotation, velocity, flags);
+        }
+
+        // Подбор не подтвердился: предмет возвращается туда, откуда его взяли.
+        private void RestorePickupPose()
+        {
+            Body.isKinematic = true;
+            transform.SetPositionAndRotation(_pickupPosition, _pickupRotation);
         }
 
         private void ResetToStart()

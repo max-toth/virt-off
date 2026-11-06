@@ -87,7 +87,8 @@ namespace Game.Scripts.Combat
 
         private void PushProp(NetProp prop, AttackSettings settings, Vector3 direction, Vector3 point)
         {
-            prop.TakeOwnership(_propSender.LocalId);
+            if (!prop.Push(_propSender.LocalId)) return;
+
             var strength = _settings.PropHitImpulse * settings.PropImpulseFactor * Mathf.Max(1f, prop.Body.mass * 0.5f);
             prop.Body.AddForceAtPosition(direction * strength, point, ForceMode.Impulse);
         }

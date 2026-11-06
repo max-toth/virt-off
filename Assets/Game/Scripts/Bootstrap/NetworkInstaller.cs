@@ -21,6 +21,7 @@ namespace Game.Scripts.Bootstrap
             builder.RegisterEntryPoint<CombatNetwork>().AsSelf();
             builder.RegisterEntryPoint<PositionNetwork>().AsSelf();
             builder.RegisterEntryPoint<VoiceNetwork>().AsSelf();
+            builder.RegisterEntryPoint<PlayerNameNetwork>().AsSelf();
             builder.Register<NetPropSender>(Lifetime.Singleton);
         }
     }

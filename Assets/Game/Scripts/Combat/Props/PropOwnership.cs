@@ -7,7 +7,7 @@ namespace Game.Scripts.Combat.Props
     {
         public const float GrantTimeout = 0.5f;
 
-        private float _pickupRequestTime;
+        private float _requestTime;
 
         public PropOwnershipState State { get; private set; } = PropOwnershipState.Free;
 
@@ -22,10 +22,25 @@ namespace Game.Scripts.Combat.Props
         public void RequestPickup(float now)
         {
             State = PropOwnershipState.PickupPending;
-            _pickupRequestTime = now;
+            _requestTime = now;
         }
 
-        /// <summary>Бросили, предмет успокоился или упал: владение возвращается серверу.</summary>
+        /// <summary>Свободный предмет толкнули: просим у сервера его физику.</summary>
+        /// <returns>true — запрос нужно отправить; false — предмет не свободен или запрос уже ждёт ответа.</returns>
+        public bool RequestSimulation(float now)
+        {
+            if (State != PropOwnershipState.Free) return false;
+
+            State = PropOwnershipState.SimulationPending;
+            _requestTime = now;
+            return true;
+        }
+
+        /// <summary>Бросили или уронили. Подтверждённый предмет остаётся за нами, пока не успокоится; неподтверждённый
+        /// станет нашим, когда придёт запоздалый PROP_GRANT.</summary>
+        public void Throw() => State = State == PropOwnershipState.Held ? PropOwnershipState.Simulating : PropOwnershipState.Free;
+
+        /// <summary>Предмет успокоился или упал: владение возвращается серверу.</summary>
         public void Release() => State = PropOwnershipState.Free;
 
         public void ApplyGrant() => State = IsHeldByUs ? PropOwnershipState.Held : PropOwnershipState.Simulating;
@@ -38,30 +53,40 @@ namespace Game.Scripts.Combat.Props
             return rejected;
         }
 
-        /// <returns>false — событие о прежнем владельце, а предмет уже у нас: не применять.</returns>
-        public bool ApplyRelease(bool releasedByUs)
+        /// <param name="releasedByUs">Предмет отпустили мы.</param>
+        /// <param name="isFree">Сервер освободил предмет (владелец отключился). Иначе бросивший ведёт его физику дальше.</param>
+        /// <returns>false — событие не применять: это эхо нашего броска или предмет уже снова у нас.</returns>
+        public bool ApplyRelease(bool releasedByUs, bool isFree)
         {
+            if (releasedByUs && !isFree) return false;
             if (!releasedByUs && IsHeldByUs) return false;
+
             State = PropOwnershipState.Free;
             return true;
         }
 
         public void ApplySnapshot(bool held) => State = held ? PropOwnershipState.HeldByOther : PropOwnershipState.Free;
 
-        /// <returns>false — предмет у нас в руках, чужое состояние не применяется.</returns>
+        /// <returns>false — физику предмета ведём мы, чужое состояние не применяется.</returns>
         public bool ApplyRemoteState(bool held)
         {
-            if (IsHeldByUs) return false;
+            // Simulating: запоздалые пакеты прежнего владельца не должны отбирать у нас физику.
+            if (IsHeldByUs || State == PropOwnershipState.Simulating) return false;
+
             State = held ? PropOwnershipState.HeldByOther : PropOwnershipState.Free;
             return true;
         }
 
-        /// <returns>true — PROP_GRANT не пришёл вовремя, подбор отменён.</returns>
+        /// <summary>Отменяет запрос, на который PROP_GRANT не пришёл вовремя.</summary>
+        /// <returns>true — отменён подбор, предмет нужно вернуть туда, откуда его взяли.</returns>
         public bool CheckGrantTimeout(float now)
         {
-            if (State != PropOwnershipState.PickupPending || now - _pickupRequestTime <= GrantTimeout) return false;
+            if (State is not (PropOwnershipState.PickupPending or PropOwnershipState.SimulationPending)) return false;
+            if (now - _requestTime <= GrantTimeout) return false;
+
+            var pickupRejected = State == PropOwnershipState.PickupPending;
             State = PropOwnershipState.Free;
-            return true;
+            return pickupRejected;
         }
     }
 }

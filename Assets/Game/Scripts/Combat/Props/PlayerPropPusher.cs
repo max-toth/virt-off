@@ -29,11 +29,7 @@ namespace Game.Scripts.Combat.Props
             var body = hit.rigidbody;
             if (body == null || hit.moveDirection.y < MinPushDirectionY) return;
 
-            if (_registry.TryFind(hit.collider, out var prop))
-            {
-                if (prop.IsHeld) return;
-                prop.TakeOwnership(_sender.LocalId);
-            }
+            if (_registry.TryFind(hit.collider, out var prop) && !prop.Push(_sender.LocalId)) return;
 
             if (body.isKinematic) return;
 

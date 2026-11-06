@@ -23,13 +23,15 @@ namespace Game.Scripts.Player.Sync
         private PositionNetwork _network;
         private Lobby _lobby;
         private RemotePlayers _remotePlayers;
+        private PlayerNames _names;
         private RemoteAvatarFactory _avatarFactory;
         private PositionSendFilter _sendFilter;
         private float _sendTimer;
 
         [Inject]
-        public void Construct(PositionNetwork network, Lobby lobby, RemotePlayers remotePlayers)
+        public void Construct(PositionNetwork network, Lobby lobby, RemotePlayers remotePlayers, PlayerNames names)
         {
+            _names = names;
             _network = network;
             _lobby = lobby;
             _remotePlayers = remotePlayers;
@@ -43,7 +45,7 @@ namespace Game.Scripts.Player.Sync
 
         private void Start()
         {
-            _avatarFactory = new RemoteAvatarFactory(transform, avatarPrefabs, avatarScale, _remotePlayers);
+            _avatarFactory = new RemoteAvatarFactory(transform, avatarPrefabs, avatarScale, _remotePlayers, _names);
             _network.Received += OnPositionReceived;
             _lobby.PlayerLeft += OnPlayerLeft;
         }

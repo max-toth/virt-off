@@ -38,6 +38,21 @@ namespace Game.Scripts.Net
 
         public bool IsSpeaking(LobbyPlayer player) => player.IsSpeaking(_clock.UnscaledTime);
 
+        /// <summary>Сейчас слышен голос хотя бы одного незаглушённого игрока.</summary>
+        public bool IsAnyoneSpeaking
+        {
+            get
+            {
+                var now = _clock.UnscaledTime;
+                foreach (var player in _playersById.Values)
+                {
+                    if (!player.Muted && player.IsSpeaking(now)) return true;
+                }
+
+                return false;
+            }
+        }
+
         public void MarkSpeaking(string id)
         {
             if (_playersById.TryGetValue(id, out var player)) player.MarkSpeaking(_clock.UnscaledTime);

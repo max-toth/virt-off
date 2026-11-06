@@ -55,6 +55,15 @@ namespace Game.Tests.EditMode
         }
 
         [Test]
+        public void SendPushRequest_MatchesFormat()
+        {
+            _sender.SendPushRequest(9);
+
+            var expected = Bytes.Packet(PacketType.PropPush).Str(FakeTransport.DefaultId).I32(9);
+            Assert.That(_transport.LastSent, Is.EqualTo((byte[])expected));
+        }
+
+        [Test]
         public void SendRelease_MatchesFormat()
         {
             var velocity = new Vector3(1f, 2f, 3f);

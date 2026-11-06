@@ -31,10 +31,16 @@ namespace Game.Scripts.Bootstrap
             builder.RegisterEntryPoint<GameSounds>().AsSelf();
             builder.Register<CombatSounds>(Lifetime.Singleton);
 
-            builder.RegisterInstance(ServerEndpoint.Resolve());
+            // Сервер из -server подключается сразу; иначе адрес выбирают в стартовом меню, если оно есть в сцене.
+            var hasCommandLineServer = ServerEndpoint.TryGetFromCommandLine(out var commandLineServer);
+            var hasMenu = FindAnyObjectByType<GameMenu>(FindObjectsInactive.Include) != null;
+            builder.RegisterInstance(hasCommandLineServer ? commandLineServer : ServerEndpoint.FromConfig());
+            builder.RegisterInstance(new StartupOptions(hasMenu && !hasCommandLineServer));
+
             builder.Register<NetManager>(Lifetime.Singleton).AsSelf().As<INetTransport>();
             new NetworkInstaller().Install(builder);
-            builder.RegisterEntryPoint<NetworkSession>();
+            builder.RegisterEntryPoint<NetworkSession>().AsSelf();
+            builder.RegisterEntryPoint<PlayerNames>().AsSelf();
 
             builder.Register<RemotePlayers>(Lifetime.Singleton);
             builder.RegisterEntryPoint<RemoteCombatPresenter>();

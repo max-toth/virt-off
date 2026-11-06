@@ -117,7 +117,8 @@ namespace Game.Scripts.Combat
             }
 
             prop = null;
-            return nearestIndex >= 0 && _props.TryFind(HitBuffer[nearestIndex].collider, out prop) && !prop.IsHeld;
+            return nearestIndex >= 0 && _props.TryFind(HitBuffer[nearestIndex].collider, out prop) && !prop.IsHeld
+                   && !prop.IsMovedByOther;
         }
     }
 }

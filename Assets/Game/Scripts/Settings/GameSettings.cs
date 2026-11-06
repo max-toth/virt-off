@@ -13,11 +13,13 @@ namespace Game.Scripts.Settings
         public const float DefaultMouseSensitivity = 2f;
         public const float DefaultFieldOfView = 60f;
         public const int ProjectQualityLevel = -1;
+        public const int MaxNicknameLength = 24;
 
         private const float MaxVoiceVolume = 2f;
 
         private readonly GameSettingsStorage _storage;
         private string _micDevice = string.Empty;
+        private string _nickname = string.Empty;
         private volatile float _voiceVolume = DefaultVoiceVolume;
 
         public GameSettings(GameSettingsStorage storage)
@@ -28,6 +30,27 @@ namespace Game.Scripts.Settings
         }
 
         public event Action MicDeviceChanged;
+
+        /// <summary>Ник сменился: его нужно заново отправить серверу.</summary>
+        public event Action NicknameChanged;
+
+        /// <summary>Имя над персонажем, до MaxNicknameLength символов; пустая строка — другие видят «Игрок id».
+        /// Не сбрасывается вместе с настройками.</summary>
+        public string Nickname
+        {
+            get => _nickname;
+            set
+            {
+                value = (value ?? string.Empty).Trim();
+                if (value.Length > MaxNicknameLength) value = value.Substring(0, MaxNicknameLength).TrimEnd();
+                if (_nickname == value) return;
+                _nickname = value;
+                NicknameChanged?.Invoke();
+            }
+        }
+
+        /// <summary>Последний сервер из стартового меню, «хост:порт»; пустая строка — сервер из ServerConfig.</summary>
+        public string ServerAddress { get; set; } = string.Empty;
 
         /// <summary>Выбранный микрофон; пустая строка — первый доступный.</summary>
         public string MicDevice
